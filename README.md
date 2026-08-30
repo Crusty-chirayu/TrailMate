@@ -1,8 +1,58 @@
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/Naereen/badges/master/all-the-badges/svg/misc/awesome.svg" width="1" height="1" alt="" />
+
 # 🏔️ TrailMate
 
-**Outdoor Trip Planning & GPS Trail Tracking Web Platform**
+### Outdoor Trip Planning & GPS Trail Tracking, Reimagined
 
-TrailMate is a unified platform for outdoor enthusiasts — trekkers, cyclists, campers, and backpackers — to plan trips, record real-time GPS waypoints, manage activity-specific gear checklists, and keep everything synced across devices via Supabase.
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&pause=1000&color=10B981&center=true&vCenter=true&width=600&lines=Plan+your+next+trek+in+minutes;Log+GPS+waypoints+in+real+time;Never+forget+gear+again;Works+fully+offline+too" alt="Typing SVG" />
+
+<br />
+
+[![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-Dark%20Theme-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
+
+[![Stars](https://img.shields.io/github/stars/Crusty-chirayu/TrailMate?style=social)](https://github.com/Crusty-chirayu/TrailMate/stargazers)
+[![Forks](https://img.shields.io/github/forks/Crusty-chirayu/TrailMate?style=social)](https://github.com/Crusty-chirayu/TrailMate/network/members)
+[![Last Commit](https://img.shields.io/github/last-commit/Crusty-chirayu/TrailMate?color=emerald)](https://github.com/Crusty-chirayu/TrailMate/commits/main)
+[![Open Issues](https://img.shields.io/github/issues/Crusty-chirayu/TrailMate?color=amber)](https://github.com/Crusty-chirayu/TrailMate/issues)
+
+<br />
+
+<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="500">
+
+</div>
+
+---
+
+## 🚧 Project Status
+
+> **TL;DR: Core is working, polish is in progress.**
+
+<div align="center">
+
+| Module | Status | Progress |
+|---|---|---|
+| Auth & Session System | ✅ Stable | ![100%](https://progress-bar.xyz/100/?title=done&color=10b981) |
+| Dashboard | ✅ Stable | ![100%](https://progress-bar.xyz/100/?title=done&color=10b981) |
+| Trips Manager | ✅ Stable | ![95%](https://progress-bar.xyz/95/?title=done&color=10b981) |
+| GPS Trail Recorder | 🟡 Functional, needs map view | ![80%](https://progress-bar.xyz/80/?title=in+progress&color=f59e0b) |
+| Gear & Checklist Manager | ✅ Stable | ![90%](https://progress-bar.xyz/90/?title=done&color=10b981) |
+| Local Scaffolding / Offline Mode | ✅ Stable | ![100%](https://progress-bar.xyz/100/?title=done&color=10b981) |
+| Map Visualizer (Leaflet/Mapbox) | ⬜ Not started | ![0%](https://progress-bar.xyz/0/?title=planned&color=6366f1) |
+| GPX / KML Export & Import | ⬜ Not started | ![0%](https://progress-bar.xyz/0/?title=planned&color=6366f1) |
+| Elevation Profile Chart | ⬜ Not started | ![0%](https://progress-bar.xyz/0/?title=planned&color=6366f1) |
+| Offline PWA Support | ⬜ Not started | ![0%](https://progress-bar.xyz/0/?title=planned&color=6366f1) |
+
+**Overall: ~65% toward the v1.0 milestone** (core CRUD + auth + GPS logging + gear tracking are done; map visualization, export, and PWA support are the remaining big pieces).
+
+</div>
+
+> 🛠️ A heads-up for anyone watching this repo: development is currently a little slower than usual — the maintainer ([@Crusty-chirayu](https://github.com/Crusty-chirayu)) is juggling a few other projects and some unforeseen interruptions at the moment. TrailMate isn't abandoned — active development and deployment are planned to resume and this project **will** be completed and shipped. Stars, issues, and PRs are very welcome in the meantime and help keep momentum going! ⭐
 
 ---
 
@@ -32,12 +82,18 @@ TrailMate is a unified platform for outdoor enthusiasts — trekkers, cyclists, 
 |---|---|
 | **Project** | TrailMate |
 | **Tagline** | Outdoor Trip Planning & GPS Trail Tracking Web Platform |
-| **Use Cases** | Trekking · Hiking · Mountain Biking / Cycling · Camping & Backpacking |
+| **Use Cases** | 🥾 Trekking · 🚶 Hiking · 🚴 Mountain Biking / Cycling · ⛺ Camping & Backpacking |
 | **Core Value** | Plan trips, log GPS waypoints (lat/lng/elevation/timestamp), manage gear packing lists, sync with Supabase Postgres — or run fully offline in Local Scaffolding Mode |
 
 ---
 
 ## Tech Stack
+
+<div align="center">
+
+![Next.js](https://skillicons.dev/icons?i=nextjs) ![TypeScript](https://skillicons.dev/icons?i=typescript) ![Tailwind](https://skillicons.dev/icons?i=tailwind) ![Supabase](https://skillicons.dev/icons?i=supabase) ![Postgres](https://skillicons.dev/icons?i=postgres)
+
+</div>
 
 | Layer | Technology |
 |---|---|
@@ -63,6 +119,19 @@ Session state flows through three coordinated layers:
 1. **Middleware** (`src/middleware.ts` → `lib/supabase/middleware.ts`) refreshes auth cookies on every request via `getAll` / `setAll` handlers.
 2. **Server client** (`lib/supabase/server.ts`) reads cookies for RSC/server actions.
 3. **Browser singleton** (`lib/supabase/client.ts`) + `useAuth()` hook keeps client components in sync via `getSession()` and `onAuthStateChange()`.
+
+```mermaid
+flowchart LR
+    A[Browser] -->|cookies| B(Next.js Middleware)
+    B --> C{Session valid?}
+    C -->|yes| D[Server Components / Actions]
+    C -->|refresh| E[Supabase Auth]
+    E --> B
+    D --> F[(Supabase Postgres)]
+    A -->|client actions| G[Browser Supabase Client]
+    G --> F
+    A -.->|no env vars| H[[MockStorage - localStorage]]
+```
 
 ---
 
@@ -197,36 +266,36 @@ auth.users
 
 ## Core Feature Modules
 
-### 1. Auth & Session System
+### 1. 🔐 Auth & Session System
 - Email & password sign up / log in via Supabase Auth.
 - Browser singleton Supabase client — prevents duplicate client instances.
 - Unified `useAuth()` hook: initializes session via `getSession()`, listens for changes via `onAuthStateChange()`.
 - `updateSession` middleware refreshes `@supabase/ssr` cookies on every server request.
 - 300ms cookie flush delay on login to avoid redirect race conditions.
 
-### 2. Dashboard (`/`)
+### 2. 📊 Dashboard (`/`)
 - Summary cards: Total Trips, Active Tracking sessions, Planned Adventures, Gear Templates.
 - Recent Outdoor Activities feed with activity tags and live status badges.
 - Quick-action shortcuts to create a trip or manage gear.
 
-### 3. Trips Manager (`/trips`, `/trips/new`)
+### 3. 🗺️ Trips Manager (`/trips`, `/trips/new`)
 - Filter by Status (Planned / Active / Completed / Cancelled) and Activity Type (Trekking / Cycling / Camping / Other).
 - Trip creation bound to `auth.uid()`, with live auth status indicator.
 - Delete trips with confirmation modal.
 
-### 4. GPS Trail Recorder (`/trips/[id]`)
+### 4. 📍 GPS Trail Recorder (`/trips/[id]`)
 - Route stats: total waypoints, latest elevation (m), current coordinates.
 - Start/Stop GPS Tracking toggle using `navigator.geolocation`.
 - Synthetic fallback GPS generator when location permission is denied.
 - Manual waypoint entry (lat / lng / elevation).
 - Route Points table: Waypoint #, Lat, Lng, Elevation, Timestamp, Sync state.
 
-### 5. Gear & Checklist Manager (`/gear`)
+### 5. 🎒 Gear & Checklist Manager (`/gear`)
 - Create/delete gear templates (e.g. "3-Season Backpacking", "Day Cycling").
 - Add items inline; toggle checked state.
 - Real-time packing progress bar (% ready).
 
-### 6. Local Scaffolding / Fallback Mode
+### 6. 💾 Local Scaffolding / Fallback Mode
 - Missing or placeholder Supabase env vars → app auto-switches to `MockStorage` (`localStorage`-backed).
 - Enables offline UI testing without crashing or requiring a live backend.
 
@@ -243,8 +312,8 @@ auth.users
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/trailmate.git
-cd trailmate
+git clone https://github.com/Crusty-chirayu/TrailMate.git
+cd TrailMate
 npm install
 ```
 
@@ -310,11 +379,13 @@ No code changes are required to switch between modes — it's detected automatic
 
 Future extension points for the next milestone:
 
-- **Interactive Map Visualizer** — integrate Leaflet / `react-leaflet` or Mapbox GL on `/trips/[id]` to draw polylines between recorded `route_points`.
-- **GPX / KML Export & Import** — export waypoints to `.gpx` for Garmin/Strava compatibility; import `.gpx` to pre-populate planned routes.
-- **Elevation Profile Chart** — use `recharts` to plot elevation vs. distance/timestamp.
-- **Offline PWA Support** — add Service Workers via `@ducanh2912/next-pwa` so GPS tracking keeps working without cellular coverage.
-- **Trip Sharing & Public Trails** — add an `is_public` boolean to `trips` to enable shareable public trail URLs.
+- ⬜ **Interactive Map Visualizer** — integrate Leaflet / `react-leaflet` or Mapbox GL on `/trips/[id]` to draw polylines between recorded `route_points`.
+- ⬜ **GPX / KML Export & Import** — export waypoints to `.gpx` for Garmin/Strava compatibility; import `.gpx` to pre-populate planned routes.
+- ⬜ **Elevation Profile Chart** — use `recharts` to plot elevation vs. distance/timestamp.
+- ⬜ **Offline PWA Support** — add Service Workers via `@ducanh2912/next-pwa` so GPS tracking keeps working without cellular coverage.
+- ⬜ **Trip Sharing & Public Trails** — add an `is_public` boolean to `trips` to enable shareable public trail URLs.
+
+These are the remaining pieces before a full v1.0 tag — deployment and completion are actively planned once the maintainer's schedule frees back up.
 
 ---
 
@@ -325,8 +396,20 @@ Future extension points for the next milestone:
 3. Follow the existing Tailwind dark-theme palette (Slate‑950/900, Emerald, Amber, Purple) for UI additions.
 4. Open a pull request with a clear description of the change and any schema migrations required.
 
+Contributions, issue reports, and even just a ⭐ are genuinely appreciated while active development is a bit slower than usual — they help keep this project moving toward a full release.
+
 ---
 
 ## License
 
 MIT — see `LICENSE` for details.
+
+<div align="center">
+
+---
+
+Made with 🥾 by [Crusty-chirayu](https://github.com/Crusty-chirayu)
+
+<img src="https://user-images.githubusercontent.com/74038190/212257467-871d32b7-e401-42e8-a166-fcfd7baa4c6b.gif" width="100">
+
+</div>
