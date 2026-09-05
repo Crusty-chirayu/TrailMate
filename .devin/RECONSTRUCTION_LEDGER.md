@@ -3,7 +3,7 @@
 **Project:** TrailMate Outdoor Trip Planning & GPS Tracking
 **Repository:** https://github.com/Crusty-chirayu/TrailMate.git
 **Started:** 2026-09-05
-**Status:** Phase 11 complete (11A–11H)
+**Status:** Phase 12A complete — security and schema correctness
 
 ---
 
@@ -820,6 +820,100 @@ service-role exposure.
 
 ---
 
-**Last Updated:** 2026-09-05
-**Current Phase:** Phase 11 - Trip Analytics (11A–11H Complete)
-**Latest Commit:** 123ecfc
+## PHASE 12A — SECURITY AND SCHEMA CORRECTNESS (Complete)
+
+**Date:** 2026-09-06
+
+**Implementation commit:** `462c2bc7cd493768ea62de450c64faaf89d650cc` — `feat: harden database security and schema constraints`
+
+**Checkpoint:** pushed to `origin/arena/01a07374-trailmate` and opened as PR #2
+
+### Findings remediated
+
+- Removed `.env.local` from the tracked tree without deleting the developer's
+  ignored local copy. `.gitignore` now excludes every `.env.*` file except the
+  redacted `.env.example`. Historical environment-file commits remain public,
+  so previously exposed Supabase credentials must be rotated; history was not
+  destructively rewritten.
+- Fixed the critical `trip_packing_items` gap: all five application tables now
+  enable RLS, revoke table privileges from `anon`, and define explicit
+  `SELECT`/`INSERT`/`UPDATE`/`DELETE` policies scoped to `authenticated`.
+  Child-table ownership resolves through the owning trip or gear template;
+  update policies include both `USING` and `WITH CHECK`.
+- Replaced the non-reproducible migration chain with an authoritative baseline.
+  The historical `0001_tracking_phase7.sql` version/name is retained for
+  existing migration histories but now creates the complete fresh schema.
+  `0002_gear_system.sql` is duplicate-safe, and
+  `20260906000100_phase12a_security_hardening.sql` is the forward migration for
+  existing databases. `schema.sql` is a validated snapshot, not an upgrade
+  script.
+- Added database checks for nonblank/practical text lengths, enum values,
+  nonnegative finite estimates and gear weight, trip date order, coordinate
+  ranges, finite elevation, nonnegative finite accuracy, source identifiers,
+  quantity limits, and packing-state consistency. Elevation and weight values
+  of zero remain valid.
+- Existing installations receive the new CHECK constraints as `NOT VALID`.
+  They protect new writes immediately without clamping, deleting, or inventing
+  legacy GPS measurements. Operators must inspect and validate legacy rows
+  after deployment.
+- Added the database uniqueness invariant `(trip_id, source_item_id)`. NULL
+  source IDs remain distinct, so legitimate ad-hoc duplicate items are allowed.
+  Legacy duplicate snapshots are preserved and detached from duplicate
+  provenance; no item row is deleted. Assignment now uses conflict-safe upsert
+  semantics for concurrent requests.
+- Added `route_points.source_id` to Row/Insert/Update TypeScript contracts,
+  relationship metadata, and typed browser/server Supabase clients.
+- Replaced truthiness-based numeric mappings with nullish semantics for route
+  elevation/accuracy, trip estimates, and gear weight. Status-only trip updates
+  now map only supplied fields and cannot erase existing trip data.
+- Migrated the deprecated middleware convention to the Next.js 16 proxy and
+  made dashboard, trip, and gear routes fail closed with a login redirect.
+  Login, signup, and the authentication callback remain public. `/gear` is
+  explicitly dynamic so cookie access is not swallowed during prerendering.
+- Added CSP, referrer policy, permissions policy, content-type protection,
+  frame protection, production HSTS, and framework-header removal. CSP permits
+  only the current Supabase and OpenStreetMap integrations; inline scripts and
+  styles remain necessary for the current Next.js/Leaflet architecture.
+
+### Verification tooling
+
+- `npm run db:validate` checks baseline/snapshot drift, unique migration
+  versions, all table RLS enables, all 20 authenticated policy operations,
+  anonymous privilege revocation, named integrity constraints, assignment
+  uniqueness, migration safety markers, and `source_id` type alignment.
+- `npm run security:scan` scans tracked files for credential signatures without
+  printing matched values and warns about historical environment commits.
+- `supabase/verification/phase12a_production_checks.sql` performs read-only
+  hosted checks for RLS flags, policy roles/commands, anonymous privileges,
+  constraint validation state, and the packing uniqueness index.
+
+### Validation at `462c2bc`
+
+- `npm run lint` — 0 errors, 14 pre-existing warnings
+- `npx tsc --noEmit` — pass
+- `npx vitest run` — 19 files, 201/201 tests pass
+- `npm run build` — pass; no deprecated middleware or dynamic-usage warning
+- `npm audit` — 0 vulnerabilities
+- `npm run db:validate` — pass
+- `npm run security:scan` — pass for 107 tracked files
+- Production runtime smoke check — protected `/`, `/trips`, `/trips/new`, and
+  `/gear` return login redirects; public auth routes remain reachable; security
+  headers are present and `X-Powered-By` is absent
+
+### External limitation / production action
+
+The configured Supabase hostname did not resolve during the audit. No migration
+was applied to a hosted database and no live RLS result is claimed. Before a
+production release, rotate historical credentials, apply the authoritative
+migration chain to the intended project, run the read-only production checks,
+remediate any invalid legacy records deliberately, and validate every pending
+constraint. Static schema checks supplement but do not replace that gate.
+
+**Phase 12A status:** implementation and repository validation complete. No
+Phase 12B work has started.
+
+---
+
+**Last Updated:** 2026-09-06
+**Current Phase:** Phase 12A - Security and Schema Correctness (Complete)
+**Latest Implementation Commit:** 462c2bc7cd493768ea62de450c64faaf89d650cc
