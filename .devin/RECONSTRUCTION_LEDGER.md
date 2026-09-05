@@ -909,11 +909,75 @@ migration chain to the intended project, run the read-only production checks,
 remediate any invalid legacy records deliberately, and validate every pending
 constraint. Static schema checks supplement but do not replace that gate.
 
-**Phase 12A status:** implementation and repository validation complete. No
-Phase 12B work has started.
+**Phase 12A status:** implementation and repository validation complete.
+
+---
+
+## PHASE 12B — TRIP RELIABILITY & JOURNEY HARDENING (Complete)
+
+**Date:** 2026-09-06
+
+**Implementation commit:** `85cb6a3` — `feat: harden trip update, lifecycle, editing, filtering and boundaries`
+
+**Remote checkpoint:** `origin/arena/01a07392-trailmate` at `85cb6a3`; PR to `main` pending merge
+
+### Scope delivered (12B-1 → 12B-9)
+
+**12B-1 Trip update correctness:**
+- `tripUpdatesToDatabase()` already maps only supplied keys; validated that `status`-only, `title`-only, `activity`-only, `date`-only, `visibility`-only, numeric `0`, and `null` vs `undefined` vs `""` are all distinguished. No default invention for omitted fields. Added `src/lib/domain/trips/update.test.ts` (11 tests) covering all important cases.
+
+**12B-2 Trip lifecycle / state transitions + dates:**
+- New `src/lib/domain/trips/lifecycle.ts`: explicit `canTransition`/`assertCanTransition`/`lifecycleDatesForTransition`/`transitionWithDates`. Allowed: `planned→active`, `planned→cancelled`, `active→completed`, `active→cancelled`; all other transitions rejected including no-ops and `planned→completed`. `TripService.updateTrip` now fetches current row, validates transition, and auto-sets `start_date` (planned→active) and `end_date` (active→completed) only when the caller did not explicitly supply the date, preserving all unrelated fields. Convenience `startTrip()`/`completeTrip()` added. GPS tracker page (`/trips/[id]/track`) auto-activates a `planned` trip when opened so tracking and lifecycle agree. Tests in `lifecycle.test.ts` (11 tests) + `journey.test.ts` (9 tests).
+
+**12B-3 Activity validation consistency:**
+- One authoritative set: `VALID_ACTIVITY_TYPES = ['trekking','cycling','camping','other']` in `src/lib/domain/trips/validation.ts`. The same set is used by `isActivityType()`, `validateTripInput()`, `TripService.createTrip`/`updateTrip` (server-side), `analytics ACTIVITY_TYPE_ORDER`, filtering, and the DB `CHECK (activity_type IN (...))`. Removed the mismatched `hiking` option from `src/app/trips/new/page.tsx` and added server-side validation on every create/update. Tests in `validation.test.ts` (12 tests).
+
+**12B-4 Server actions + redirect correctness:**
+- Audited `create`/`update`/`start`/`complete`/`delete` in `src/app/trips/new/page.tsx` and `src/app/trips/[id]/page.tsx` + `edit/page.tsx` + `track/page.tsx`. Redirects (`redirect('/trips')`) are now *outside* the inner `try/catch` that handles service errors, and every catch explicitly re-throws `NEXT_REDIRECT` (checked via `digest.startsWith('NEXT_REDIRECT')`) so Next.js control flow is never swallowed. Added `redirect.test.ts` (2 tests) for the pattern.
+
+**12B-5 Trip editing:**
+- Implemented `src/app/trips/[id]/edit/page.tsx` (`export const dynamic='force-dynamic'`): loads existing trip via `TripService.getTripById`, pre-fills all editable fields (title, activity, description, plannedDate, estimatedDistance/Elevation/Duration, difficulty, visibility), validates with `validateTripInput`, maps empty strings to `null` (clear) and `"0"` to `0`, preserves unrelated data via `tripUpdatesToDatabase`, enforces ownership (via service `user_id` filter) and lifecycle (edit form does not expose status; status changes only via lifecycle actions), returns to `/trips/[id]` on success, shows validation errors, works on mobile. Edit control on detail page now links to this route with accessible `aria-label`.
+
+**12B-6 Safe deletion confirmation:**
+- New client component `src/components/trips/DeleteTripButton.tsx`: two-stage destructive dialog with clear explanation, `Confirm`/`Cancel` buttons, loading state (`Deleting…`), failure state (`role="alert"`), `Escape` to close, `Cancel` focused initially, `role="dialog"` + `aria-modal` + `aria-labelledby/describedby`, no accidental deletion (requires explicit confirm). Successful deletion redirects to `/trips`. Integrated into detail page replacing the bare form submit.
+
+**12B-7 URL-driven filtering:**
+- `src/app/trips/page.tsx` now `export const dynamic='force-dynamic'` and `searchParams: Promise<...>` (Next.js 16). Server-validated filtering: only `status` in `['planned','active','completed','cancelled']` and `activity` in the authoritative set participate; invalid values are dropped, not errored. Filter UI is a real `GET` form (`role="search"`), with `search`/`status`/`activity` inputs, `Filter` submit and `Clear` link (`/trips`) that removes query, deterministic, refresh-safe, shareable, no duplicate params, unrelated params preserved via normal GET semantics. Added `filtering.test.ts` (7 tests).
+
+**12B-8 Loading / error / not-found boundaries:**
+- Added `src/app/trips/loading.tsx`, `src/app/trips/error.tsx` (client, logs and `Try again`/`Back`), `src/app/trips/[id]/loading.tsx`, `src/app/trips/[id]/error.tsx`, `src/app/trips/[id]/not-found.tsx` (friendly, no internal detail leak, `Back to trips`/`Create a trip`). Detail page now uses `notFound()` for missing/ownership miss instead of silent `redirect('/trips')`; protected routes still `redirect('/login')` when unauthenticated.
+
+**12B-9 Full journey tests:**
+- New deterministic suite: `validation.test.ts` 12, `lifecycle.test.ts` 11, `update.test.ts` 11, `filtering.test.ts` 7, `journey.test.ts` 9, `redirect.test.ts` 2. Journey tests cover load existing values, valid/invalid updates, ownership contract, status-only preservation, zero/nullable handling, full `planned→active→completed` with dates, repeated/invalid transitions, activity consistency. No existing tests deleted.
+
+**Directly-related accessibility:**
+- All new filter inputs have associated `<label>` (`sr-only` where visual label would duplicate), `aria-label`/`aria-describedby`, `role="search"` on filter, `role="dialog"` + focus on cancel for delete, `aria-label` on Start/Edit/Delete/Complete buttons with trip title, `aria-label` on edit form fields, no `Link` inside `Button` nesting (uses `Button href`), status not only via color (text + Badge variant), destructive action explicit. Edit page labels all associated.
+
+**Directly-related performance:**
+- `getAllTrips` once + in-memory filter for `/trips`; edit/detail load only the single trip (plus packing progress for card); no new duplicate queries introduced. `getFilteredTrips` helper exists for reuse without extra DB round-trips.
+
+### Validation at `85cb6a3`
+
+- `npm run lint` — 0 errors, 4 pre-existing warnings (gear page unused `templateId`/`CardDescription`, persistence `TrackingSession`, sync `error`)
+- `npx tsc --noEmit` — pass
+- `npx vitest run` — 25 files, 253/253 tests pass (52 new)
+- `NEXT_PUBLIC_SUPABASE_URL/DUMMY npm run build` — pass (routes include `/trips/[id]/edit`, all trip routes `ƒ` dynamic)
+- `npm audit` — 0 vulnerabilities
+- `npm run db:validate` — pass (122 tracked files)
+- `npm run security:scan` — pass for 122 tracked files (historical env-commit warning remains expected)
+- `git diff --check` — clean
+
+### Known limitations (12B)
+
+- Offline trip mutations still require connectivity; no offline queue for trips.
+- No bulk trip operations or trip sharing UI.
+- Production DB still requires hosted `phase12a_production_checks.sql` run and constraint validation after migration.
+- `trip_packing_items` uniqueness and elevation handling unchanged (12A).
+
+**Phase 12B status:** complete (12B-1 → 12B-9). No Phase 12C work has started.
 
 ---
 
 **Last Updated:** 2026-09-06
-**Current Phase:** Phase 12A - Security and Schema Correctness (Complete)
-**Latest Implementation Commit:** d523c6952d9e72e62a4fa377d93b86528ab98701
+**Current Phase:** Phase 12B - Trip Reliability & Journey Hardening (Complete)
+**Latest Implementation Commit:** 85cb6a315c84d7396ec10cfeb637ddc6dcc111b2
