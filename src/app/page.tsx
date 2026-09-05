@@ -1,14 +1,44 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { Suspense } from 'react'
 import { TripService } from '@/lib/domain/trips/service'
-import type { Trip } from '@/types/domain'
+import { TripAnalyticsService } from '@/lib/domain/tracking/analyticsService'
+import {
+  computeTripAnalytics,
+  emptyTripAnalytics,
+  type AnalyticsWindow,
+  type TripActivityRecord,
+  type TripAnalytics,
+} from '@/lib/domain/tracking/analytics'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Mountain, MapPin, Calendar, Plus, Backpack } from 'lucide-react'
+import WindowSelector from '@/components/analytics/WindowSelector'
+import type { ActivityType, TripStatus } from '@/types/domain'
+import { Mountain, MapPin, Calendar, Plus, Backpack, Footprints, Route, Timer, TrendingUp, CheckCheck } from 'lucide-react'
 import Link from 'next/link'
+import { formatDistance, formatElevation, formatTime } from '@/lib/tracking/format'
 
-export default async function Home() {
+const WINDOW_LABELS: Record<string, string> = {
+  '7': 'last 7 days',
+  '30': 'last 30 days',
+  '90': 'last 90 days',
+  '365': 'last year',
+  all: 'all time',
+}
+
+function parseWindowParam(value: string | undefined): AnalyticsWindow {
+  switch (value) {
+    case '7': return { days: 7 }
+    case '90': return { days: 90 }
+    case '365': return { days: 365 }
+    case 'all': return 'all'
+    case '30':
+    default: return { days: 30 }
+  }
+}
+
+export default async function Home({ searchParams }: { searchParams: Promise<{ window?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -16,97 +46,132 @@ export default async function Home() {
     redirect('/login')
   }
 
-  // Fetch trip data
-  let trips: Trip[] = []
-  let tripCount = 0
-  let activeTrips = 0
-  let plannedTrips = 0
-  let completedTrips = 0
+  const { window: windowParam } = await searchParams
+  const window = parseWindowParam(windowParam)
+  const referenceDate = new Date() // explicit anchor: this server render
+
+  let records: TripActivityRecord[] = []
+  let analytics: TripAnalytics = emptyTripAnalytics()
+  let trips: TripSummaryRow[] = []
+  let analyticsAvailable = false
 
   try {
-    trips = await TripService.getAllTrips()
-    tripCount = trips.length
-    activeTrips = trips.filter(t => t.status === 'active').length
-    plannedTrips = trips.filter(t => t.status === 'planned').length
-    completedTrips = trips.filter(t => t.status === 'completed').length
+    records = await TripAnalyticsService.getTripActivityRecords()
+    analytics = computeTripAnalytics(records, { window, referenceDate })
+    analyticsAvailable = true
   } catch (error) {
-    // Handle case where Supabase is not configured
-    console.log('Supabase not configured, using mock data')
+    if (error instanceof Error && error.message === 'User not authenticated') redirect('/login')
+    console.error('Failed to load trip analytics:', error)
   }
 
-  const recentTrips = trips.slice(0, 3)
+  // Recent adventures (unchanged behavior: falls back gracefully).
+  try {
+    const allTrips = await TripService.getAllTrips()
+    trips = allTrips.slice(0, 3).map(t => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      activityType: t.activityType,
+      plannedDate: t.plannedDate,
+    }))
+  } catch (error) {
+    if (error instanceof Error && error.message === 'User not authenticated') redirect('/login')
+    console.error('Failed to load recent trips:', error)
+  }
+
+  const hasAnyData = analytics.totalTrips > 0
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Welcome back, {user.email}</h1>
-          <p className="text-muted-foreground">
-            Your outdoor adventure companion for trip planning and GPS tracking.
+        <header className="mb-8">
+          <p className="text-sm text-muted-foreground mb-1">Welcome back</p>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Expedition Log</h1>
+          <p className="text-muted-foreground mt-2 max-w-xl">
+            Distance, time and elevation — measured only from your recorded routes, never estimated.
           </p>
-        </div>
+        </header>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Trips</CardTitle>
-              <Mountain className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{tripCount}</div>
-              <p className="text-xs text-muted-foreground">
-                All adventures
-              </p>
-            </CardContent>
-          </Card>
+        {analyticsAvailable && !hasAnyData ? (
+          <EmptyExpeditionLog />
+        ) : (
+          <section aria-labelledby="field-log-heading" className="mb-8">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h2 id="field-log-heading" className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Field log · {WINDOW_LABELS[windowParam ?? '30']}
+              </h2>
+              <Suspense fallback={null}>
+                <WindowSelector />
+              </Suspense>
+            </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active</CardTitle>
-              <MapPin className="h-4 w-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{activeTrips}</div>
-              <p className="text-xs text-muted-foreground">
-                Currently tracking
-              </p>
-            </CardContent>
-          </Card>
+            {/* Primary metrics — instrument panel, same pattern as the route page */}
+            <dl className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border rounded-md overflow-hidden border border-border">
+              <Metric
+                icon={<Footprints className="h-4 w-4" />}
+                label="Total distance"
+                value={analytics.tripsWithRoute > 0 ? formatDistance(analytics.totalDistance) : '0 m'}
+                detail={analytics.tripsWithRoute > 0
+                  ? `${analytics.tripsWithRoute} recorded ${analytics.tripsWithRoute === 1 ? 'route' : 'routes'}`
+                  : 'no recorded routes'}
+              />
+              <Metric
+                icon={<CheckCheck className="h-4 w-4" />}
+                label="Completed trips"
+                value={String(analytics.completedTrips)}
+                detail={`of ${analytics.totalTrips} ${analytics.totalTrips === 1 ? 'trip' : 'trips'} in period`}
+              />
+              <Metric
+                icon={<TrendingUp className="h-4 w-4" />}
+                label="Elevation gained"
+                value={analytics.hasElevation ? `+${formatElevation(analytics.totalElevationGain)}` : '—'}
+                detail={analytics.hasElevation
+                  ? `with ${formatElevation(analytics.totalElevationLoss)} descent`
+                  : 'no altitude data'}
+              />
+              <Metric
+                icon={<Timer className="h-4 w-4" />}
+                label="Moving time"
+                value={formatTime(analytics.totalMovingTime)}
+                detail={`of ${formatTime(analytics.totalElapsedTime)} elapsed`}
+              />
+            </dl>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Planned</CardTitle>
-              <Calendar className="h-4 w-4 text-amber-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{plannedTrips}</div>
-              <p className="text-xs text-muted-foreground">
-                Upcoming adventures
+            {/* Historical context — every clause backed by real data */}
+            {analytics.totalTrips > 0 && (
+              <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                <StatusLine analytics={analytics} />
+                {analytics.tripsWithRoute > 0 &&
+                  analytics.averageTripDistance !== null &&
+                  analytics.averageDuration !== null && (
+                    <>
+                      {' '}· average recorded trip {formatDistance(analytics.averageTripDistance)} over{' '}
+                      {formatTime(analytics.averageDuration)}
+                    </>
+                  )}
+                {analytics.longestTrip && (
+                  <>
+                    {' '}· longest:{' '}
+                    <Link
+                      href={`/trips/${analytics.longestTrip.tripId}`}
+                      className="text-foreground font-medium underline underline-offset-4 hover:text-primary"
+                    >
+                      {analytics.longestTrip.title}
+                    </Link>{' '}
+                    {formatDistance(analytics.longestTrip.distance)}
+                  </>
+                )}
               </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <Backpack className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{completedTrips}</div>
-              <p className="text-xs text-muted-foreground">
-                Finished journeys
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </section>
+        )}
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="border-primary/20 bg-primary/5">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <Plus className="h-5 w-5" />
                 New Trip
               </CardTitle>
@@ -123,7 +188,7 @@ export default async function Home() {
 
           <Card className="border-emerald-500/20 bg-emerald-500/5">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <MapPin className="h-5 w-5 text-emerald-500" />
                 Start Tracking
               </CardTitle>
@@ -132,9 +197,9 @@ export default async function Home() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href={activeTrips > 0 ? `/trips/${trips.find(t => t.status === 'active')?.id}` : '#'} className="block">
-                <Button variant="outline" className="w-full" disabled={activeTrips === 0}>
-                  {activeTrips > 0 ? 'Continue Tracking' : 'No Active Trip'}
+              <Link href={analytics.activeTrips > 0 ? `/trips/${activeTripId(records)}` : '#'} className="block">
+                <Button variant="outline" className="w-full" disabled={analytics.activeTrips === 0}>
+                  {analytics.activeTrips > 0 ? 'Continue Tracking' : 'No Active Trip'}
                 </Button>
               </Link>
             </CardContent>
@@ -142,7 +207,7 @@ export default async function Home() {
 
           <Card className="border-purple-500/20 bg-purple-500/5">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <Backpack className="h-5 w-5 text-purple-500" />
                 Gear Check
               </CardTitle>
@@ -161,13 +226,13 @@ export default async function Home() {
         {/* Recent Trips */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Adventures</CardTitle>
+            <CardTitle className="text-lg">Recent Adventures</CardTitle>
             <CardDescription>
               Your latest outdoor activities
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {recentTrips.length === 0 ? (
+            {trips.length === 0 ? (
               <div className="text-center py-8">
                 <Mountain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No trips yet</h3>
@@ -180,7 +245,7 @@ export default async function Home() {
               </div>
             ) : (
               <div className="space-y-4">
-                {recentTrips.map((trip) => (
+                {trips.map((trip) => (
                   <div
                     key={trip.id}
                     className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent transition-colors"
@@ -225,3 +290,76 @@ export default async function Home() {
     </main>
   )
 }
+
+interface TripSummaryRow {
+  id: string
+  title: string
+  status: TripStatus
+  activityType: ActivityType
+  plannedDate?: Date
+}
+
+function Metric({ icon, label, value, detail }: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  detail: string
+}) {
+  return (
+    <div className="bg-background px-4 py-4 flex flex-col justify-between gap-2">
+      <dt className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wider">
+        <span aria-hidden="true" className="text-primary/70">{icon}</span>
+        {label}
+      </dt>
+      <dd>
+        <span className="block text-2xl sm:text-3xl font-bold tabular-nums tracking-tight">{value}</span>
+        <span className="block text-xs text-muted-foreground mt-1">{detail}</span>
+      </dd>
+    </div>
+  )
+}
+
+/** "4 completed · 1 active · 2 planned" — only non-zero statuses, in reading order. */
+function StatusLine({ analytics }: { analytics: TripAnalytics }) {
+  const parts: string[] = []
+  if (analytics.completedTrips > 0) parts.push(`${analytics.completedTrips} completed`)
+  if (analytics.activeTrips > 0) parts.push(`${analytics.activeTrips} active`)
+  if (analytics.plannedTrips > 0) parts.push(`${analytics.plannedTrips} planned`)
+  if (analytics.cancelledTrips > 0) parts.push(`${analytics.cancelledTrips} cancelled`)
+  if (parts.length === 0) return null
+  return <>{parts.join(' · ')}</>
+}
+
+function activeTripId(records: TripActivityRecord[]): string {
+  const active = records.find(r => r.status === 'active')
+  return active?.tripId ?? ''
+}
+
+function EmptyExpeditionLog() {
+  return (
+    <section aria-labelledby="empty-log-heading" className="mb-8">
+      <div className="rounded-md border border-dashed border-border p-10 sm:p-14 text-center">
+        <Mountain className="h-14 w-14 text-muted-foreground mx-auto mb-4" />
+        <h2 id="empty-log-heading" className="text-lg font-semibold mb-2">
+          No expeditions logged yet
+        </h2>
+        <p className="text-muted-foreground max-w-md mx-auto mb-6">
+          Plan a trip and record a GPS route — your distance, moving time and
+          elevation will appear here, measured from real recorded data.
+        </p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <Button href="/trips/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Plan Your First Trip
+          </Button>
+          <Button href="/trips" variant="outline">
+            <Route className="h-4 w-4 mr-2" />
+            Browse Trips
+          </Button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+
