@@ -1,9 +1,20 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import localFont from 'next/font/local'
 import './globals.css'
 import Navigation from '@/components/layout/Navigation'
 
-const inter = Inter({ subsets: ['latin'] })
+// Self-hosted variable Inter (latin, wght 100-900). Served from our own
+// bundle instead of fetched from Google Fonts at build time, so builds are
+// deterministic and first load does not depend on a third-party CDN.
+const inter = localFont({
+  src: [
+    {
+      path: './fonts/Inter-Latin-wght-normal.woff2',
+      weight: '100 900',
+      style: 'normal',
+    },
+  ],
+})
 
 export const metadata: Metadata = {
   title: 'TrailMate - Outdoor Trip Planning & GPS Tracking',
