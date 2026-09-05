@@ -55,9 +55,7 @@ export default function Navigation() {
                 <Link href="/login" className="text-sm text-foreground hover:text-primary transition-colors">
                   Login
                 </Link>
-                <Link href="/signup" className="block">
-                  <Button>Sign Up</Button>
-                </Link>
+                <Button href="/signup">Sign Up</Button>
               </>
             )}
           </div>
@@ -112,9 +110,9 @@ export default function Navigation() {
                 >
                   Login
                 </Link>
-                <Link href="/signup" className="block" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="ghost" size="sm">Sign Up</Button>
-                </Link>
+                <Button href="/signup" variant="ghost" size="sm" onClick={() => setMobileMenuOpen(false)}>
+                  Sign Up
+                </Button>
               </>
             )}
           </div>
