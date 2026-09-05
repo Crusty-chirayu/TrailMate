@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
-import type { GearTemplate, GearTemplateInsert, GearItem, GearItemInsert } from '@/types/database'
+import type { GearTemplate, GearTemplateInsert, GearItem, GearItemInsert, GearItemUpdate } from '@/types/database'
 import type { GearTemplate as DomainGearTemplate, GearItem as DomainGearItem, PackingProgress, GearCategory } from '@/types/domain'
+import { computePackingProgress } from './progress'
 
 export class GearService {
   private static transformTemplateToDomain(dbTemplate: GearTemplate): DomainGearTemplate {
@@ -35,11 +36,13 @@ export class GearService {
       itemName: dbItem.item_name,
       category: dbItem.category as GearCategory | undefined,
       checked: dbItem.checked,
+      required: dbItem.required,
       quantity: dbItem.quantity,
       weight: dbItem.weight || undefined,
       notes: dbItem.notes || undefined,
       sortOrder: dbItem.sort_order,
       createdAt: new Date(dbItem.created_at),
+      updatedAt: new Date(dbItem.updated_at),
     }
   }
 
@@ -47,6 +50,8 @@ export class GearService {
     templateId: string
     itemName: string
     category?: GearCategory
+    checked?: boolean
+    required?: boolean
     quantity?: number
     weight?: number
     notes?: string
@@ -56,6 +61,8 @@ export class GearService {
       template_id: domain.templateId,
       item_name: domain.itemName,
       category: domain.category || null,
+      checked: domain.checked ?? false,
+      required: domain.required ?? false,
       quantity: domain.quantity || 1,
       weight: domain.weight || null,
       notes: domain.notes || null,
@@ -202,6 +209,7 @@ export class GearService {
     templateId: string
     itemName: string
     category?: GearCategory
+    required?: boolean
     quantity?: number
     weight?: number
     notes?: string
@@ -231,6 +239,7 @@ export class GearService {
     itemName?: string
     category?: GearCategory
     checked?: boolean
+    required?: boolean
     quantity?: number
     weight?: number
     notes?: string
@@ -243,15 +252,15 @@ export class GearService {
       throw new Error('User not authenticated')
     }
 
-    const updateData: Partial<GearItemInsert> = {
-      item_name: updates.itemName,
-      category: updates.category || null,
-      checked: updates.checked,
-      quantity: updates.quantity,
-      weight: updates.weight || null,
-      notes: updates.notes || null,
-      sort_order: updates.sortOrder,
-    }
+    const updateData: GearItemUpdate = {}
+    if (updates.itemName !== undefined) updateData.item_name = updates.itemName
+    if (updates.category !== undefined) updateData.category = updates.category || null
+    if (updates.checked !== undefined) updateData.checked = updates.checked
+    if (updates.required !== undefined) updateData.required = updates.required
+    if (updates.quantity !== undefined) updateData.quantity = updates.quantity
+    if (updates.weight !== undefined) updateData.weight = updates.weight || null
+    if (updates.notes !== undefined) updateData.notes = updates.notes || null
+    if (updates.sortOrder !== undefined) updateData.sort_order = updates.sortOrder
 
     const { data, error } = await supabase
       .from('gear_items')
@@ -285,27 +294,12 @@ export class GearService {
 
   static async calculatePackingProgress(templateId: string): Promise<PackingProgress> {
     const items = await this.getGearItemsByTemplateId(templateId)
-
-    const totalItems = items.length
-    const checkedItems = items.filter(item => item.checked).length
-    const percentage = totalItems > 0 ? (checkedItems / totalItems) * 100 : 0
-
-    const totalWeight = items.reduce((sum, item) => {
-      return sum + (item.weight || 0) * item.quantity
-    }, 0)
-
-    const packedWeight = items
-      .filter(item => item.checked)
-      .reduce((sum, item) => {
-        return sum + (item.weight || 0) * item.quantity
-      }, 0)
-
-    return {
-      totalItems,
-      checkedItems,
-      percentage: Math.round(percentage),
-      totalWeight,
-      packedWeight,
-    }
+    return computePackingProgress(items.map(item => ({
+      category: item.category,
+      quantity: item.quantity,
+      weight: item.weight,
+      required: item.required,
+      packed: item.checked,
+    })))
   }
 }

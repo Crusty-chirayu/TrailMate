@@ -72,11 +72,13 @@ CREATE TABLE gear_items (
   item_name TEXT NOT NULL,
   category TEXT, -- 'navigation', 'shelter', 'clothing', etc.
   checked BOOLEAN DEFAULT false,
+  required BOOLEAN DEFAULT false,
   quantity INTEGER DEFAULT 1,
   weight DOUBLE PRECISION, -- grams
   notes TEXT,
   sort_order INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Indexes for gear items
@@ -98,6 +100,36 @@ CREATE TRIGGER update_trips_updated_at BEFORE UPDATE ON trips
 
 CREATE TRIGGER update_gear_templates_updated_at BEFORE UPDATE ON gear_templates
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_gear_items_updated_at BEFORE UPDATE ON gear_items
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trip packing items table (snapshot of gear items assigned to a trip).
+-- item data is COPIED at assignment time so later template edits can never
+-- corrupt a trip's historical packing state. template_id/source_item_id are
+-- nullable provenance references (ON DELETE SET NULL).
+CREATE TABLE trip_packing_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  trip_id UUID NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+  template_id UUID REFERENCES gear_templates(id) ON DELETE SET NULL,
+  source_item_id UUID REFERENCES gear_items(id) ON DELETE SET NULL,
+  item_name TEXT NOT NULL,
+  category TEXT,
+  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 1),
+  weight DOUBLE PRECISION, -- grams per unit
+  notes TEXT,
+  required BOOLEAN NOT NULL DEFAULT false,
+  packed BOOLEAN NOT NULL DEFAULT false,
+  packed_at TIMESTAMPTZ,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes for trip packing items
+CREATE INDEX idx_trip_packing_items_trip_id ON trip_packing_items(trip_id);
+CREATE INDEX idx_trip_packing_items_category ON trip_packing_items(category);
+CREATE INDEX idx_trip_packing_items_packed ON trip_packing_items(packed);
 
 -- Row Level Security (RLS)
 
@@ -207,9 +239,58 @@ CREATE POLICY "Users can delete gear items of own templates" ON gear_items
     )
   );
 
+-- RLS Policies for trip packing items (access via trip ownership)
+CREATE POLICY "Users can view packing items of own trips" ON trip_packing_items
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM trips
+      WHERE trips.id = trip_packing_items.trip_id
+      AND trips.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can insert packing items for own trips" ON trip_packing_items
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM trips
+      WHERE trips.id = trip_packing_items.trip_id
+      AND trips.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update packing items of own trips" ON trip_packing_items
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM trips
+      WHERE trips.id = trip_packing_items.trip_id
+      AND trips.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM trips
+      WHERE trips.id = trip_packing_items.trip_id
+      AND trips.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can delete packing items of own trips" ON trip_packing_items
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM trips
+      WHERE trips.id = trip_packing_items.trip_id
+      AND trips.user_id = auth.uid()
+    )
+  );
+
+CREATE TRIGGER update_trip_packing_items_updated_at BEFORE UPDATE ON trip_packing_items
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Grant necessary permissions
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON TABLE trips TO anon, authenticated;
 GRANT ALL ON TABLE route_points TO anon, authenticated;
 GRANT ALL ON TABLE gear_templates TO anon, authenticated;
 GRANT ALL ON TABLE gear_items TO anon, authenticated;
+GRANT ALL ON TABLE trip_packing_items TO anon, authenticated;

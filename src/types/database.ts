@@ -137,11 +137,13 @@ export interface Database {
           item_name: string
           category: string | null
           checked: boolean
+          required: boolean
           quantity: number
           weight: number | null
           notes: string | null
           sort_order: number
           created_at: string
+          updated_at: string
         }
         Insert: {
           id?: string
@@ -149,11 +151,13 @@ export interface Database {
           item_name: string
           category?: string | null
           checked?: boolean
+          required?: boolean
           quantity?: number
           weight?: number | null
           notes?: string | null
           sort_order?: number
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
@@ -161,10 +165,64 @@ export interface Database {
           item_name?: string
           category?: string | null
           checked?: boolean
+          required?: boolean
           quantity?: number
           weight?: number | null
           notes?: string | null
           sort_order?: number
+          updated_at?: string
+        }
+      }
+      trip_packing_items: {
+        Row: {
+          id: string
+          trip_id: string
+          template_id: string | null
+          source_item_id: string | null
+          item_name: string
+          category: string | null
+          quantity: number
+          weight: number | null
+          notes: string | null
+          required: boolean
+          packed: boolean
+          packed_at: string | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          template_id?: string | null
+          source_item_id?: string | null
+          item_name: string
+          category?: string | null
+          quantity?: number
+          weight?: number | null
+          notes?: string | null
+          required?: boolean
+          packed?: boolean
+          packed_at?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          trip_id?: string
+          template_id?: string | null
+          source_item_id?: string | null
+          item_name?: string
+          category?: string | null
+          quantity?: number
+          weight?: number | null
+          notes?: string | null
+          required?: boolean
+          packed?: boolean
+          packed_at?: string | null
+          sort_order?: number
+          updated_at?: string
         }
       }
     }
@@ -196,3 +254,7 @@ export type GearTemplateUpdate = Database['public']['Tables']['gear_templates'][
 export type GearItem = Database['public']['Tables']['gear_items']['Row']
 export type GearItemInsert = Database['public']['Tables']['gear_items']['Insert']
 export type GearItemUpdate = Database['public']['Tables']['gear_items']['Update']
+
+export type TripPackingItem = Database['public']['Tables']['trip_packing_items']['Row']
+export type TripPackingItemInsert = Database['public']['Tables']['trip_packing_items']['Insert']
+export type TripPackingItemUpdate = Database['public']['Tables']['trip_packing_items']['Update']

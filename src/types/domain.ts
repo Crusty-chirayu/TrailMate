@@ -6,18 +6,39 @@ export type TripStatus = 'planned' | 'active' | 'completed' | 'cancelled'
 export type Difficulty = 'easy' | 'moderate' | 'hard' | 'expert'
 export type Visibility = 'private' | 'shared' | 'public'
 
-export type GearCategory = 
+export type GearCategory =
   | 'navigation'
   | 'shelter'
+  | 'sleeping'
   | 'clothing'
+  | 'cooking'
   | 'hydration'
   | 'food'
   | 'safety'
+  | 'first-aid'
   | 'lighting'
   | 'electronics'
-  | 'first-aid'
+  | 'tools'
   | 'personal'
   | 'other'
+
+/** Display order + labels for gear categories (deterministic grouping). */
+export const GEAR_CATEGORY_ORDER: ReadonlyArray<{ value: GearCategory; label: string }> = [
+  { value: 'shelter', label: 'Shelter' },
+  { value: 'sleeping', label: 'Sleeping' },
+  { value: 'clothing', label: 'Clothing' },
+  { value: 'navigation', label: 'Navigation' },
+  { value: 'food', label: 'Food & Water' },
+  { value: 'hydration', label: 'Hydration' },
+  { value: 'cooking', label: 'Cooking' },
+  { value: 'safety', label: 'Safety' },
+  { value: 'first-aid', label: 'First Aid' },
+  { value: 'lighting', label: 'Lighting' },
+  { value: 'electronics', label: 'Electronics' },
+  { value: 'tools', label: 'Tools' },
+  { value: 'personal', label: 'Personal' },
+  { value: 'other', label: 'Miscellaneous' },
+]
 
 export interface Trip {
   id: string
@@ -77,19 +98,50 @@ export interface GearItem {
   itemName: string
   category?: GearCategory
   checked: boolean
+  required: boolean
   quantity: number
-  weight?: number // grams
+  weight?: number // grams per unit
   notes?: string
   sortOrder: number
   createdAt: Date
+  updatedAt: Date
+}
+
+/**
+ * A trip's packing item — a SNAPSHOT copied from a gear template item at
+ * assignment time. Later edits to the source template never affect this data,
+ * so a trip's historical packing state stays stable. templateId/sourceItemId
+ * are kept only as provenance references.
+ */
+export interface PackingItem {
+  id: string
+  tripId: string
+  templateId?: string
+  sourceItemId?: string
+  itemName: string
+  category?: GearCategory
+  quantity: number
+  weight?: number // grams per unit
+  notes?: string
+  required: boolean
+  packed: boolean
+  packedAt?: Date
+  sortOrder: number
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface PackingProgress {
   totalItems: number
-  checkedItems: number
-  percentage: number
-  totalWeight: number // grams
+  packedItems: number
+  requiredItems: number
+  requiredPacked: number
+  optionalItems: number
+  optionalPacked: number
+  percentage: number // 0-100, rounded
+  totalWeight: number // grams, quantity-weighted
   packedWeight: number // grams
+  remainingWeight: number // grams
 }
 
 export interface TrackingState {

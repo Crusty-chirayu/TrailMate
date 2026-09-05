@@ -1,5 +1,8 @@
 import { redirect } from 'next/navigation'
 import { TripService } from '@/lib/domain/trips/service'
+import { TripPackingService } from '@/lib/domain/gear/tripPacking'
+import { formatWeight } from '@/lib/domain/gear/progress'
+import { Progress } from '@/components/ui/Progress'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -195,21 +198,65 @@ export default async function TripDetailPage({
         )}
 
         {/* Gear Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Gear Checklist</CardTitle>
-            <CardDescription>
-              Required equipment for this trip
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-sm">Gear integration coming soon</p>
-            </div>
-          </CardContent>
-        </Card>
+        <GearCard tripId={trip.id} />
       </div>
     </main>
+  )
+}
+
+async function GearCard({ tripId }: { tripId: string }) {
+  let progress: Awaited<ReturnType<typeof TripPackingService.getPackingProgress>> | null = null
+  try {
+    progress = await TripPackingService.getPackingProgress(tripId)
+  } catch (error) {
+    console.error('Failed to load packing progress:', error)
+  }
+
+  if (!progress) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Gear Checklist</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Unable to load packing status.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (progress.totalItems === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Gear Checklist</CardTitle>
+          <CardDescription>No packing list yet</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button href={`/trips/${tripId}/pack`} variant="outline" size="sm">
+            Build packing list
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Gear Checklist</CardTitle>
+        <CardDescription className="tabular-nums">
+          {progress.packedItems} / {progress.totalItems} packed ·{' '}
+          {progress.requiredItems - progress.requiredPacked} required remaining
+          {progress.totalWeight > 0 && <> · {formatWeight(progress.packedWeight)} packed</>}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Progress value={progress.percentage} className="mb-3" />
+        <Button href={`/trips/${tripId}/pack`} size="sm">
+          {progress.percentage === 100 ? 'View checklist' : 'Continue packing'}
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
