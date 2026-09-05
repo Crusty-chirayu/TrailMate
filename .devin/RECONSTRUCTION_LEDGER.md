@@ -1,9 +1,9 @@
-﻿# TrailMate Reconstruction Ledger
+# TrailMate Reconstruction Ledger
 
 **Project:** TrailMate Outdoor Trip Planning & GPS Tracking
 **Repository:** https://github.com/Crusty-chirayu/TrailMate.git
 **Started:** 2026-09-05
-**Status:** Phase 7 Complete
+**Status:** Phase 11 in progress (11A complete)
 
 ---
 
@@ -653,6 +653,97 @@ Phase 7 map stack and design language.
 
 ---
 
+## PHASE 11 — TRIP ANALYTICS & PERSONAL PERFORMANCE INSIGHTS (In Progress)
+
+**Roadmap:** 11A Analytics Domain → 11B Historical Aggregation → 11C Dashboard
+→ 11D Activity Breakdown → 11E Trends → 11F Personal Records → 11G UX Refinement
+→ 11H Performance/Security/Accessibility/QA
+
+### 11A — Analytics Domain (Complete)
+
+**Commit:** `4f698b0` `feat: implement trip analytics domain`
+**Also:** `304505e` `fix: self-host Inter font to remove build-time network dependency`
+
+**Session baseline note (forensics):** work resumed from a single baseline
+commit (`7bb128e`) containing the full Phase 7–10 codebase. A handoff note
+described a partially constructed analytics test file; inspection of the
+checkout (git status, branch/remote check, full file listing) found NO
+analytics artifacts — the tree was clean with no untracked files. Phase 11A
+was therefore built fresh on the verified Phase 7–10 baseline rather than
+"repairing" a partial state that did not exist in the repository.
+
+### Architecture (`src/lib/domain/tracking/analytics.ts`)
+- **Pure, deterministic aggregation** over normalized `TripActivityRecord`s.
+  No I/O, no wall-clock reads: `referenceDate` is explicit, or defaults to
+  the latest valid record date in the dataset.
+- **Single composition point, zero duplicated math:**
+  `tripActivityRecord(trip, points)` consumes the canonical
+  `computeRouteStats()` (distance, elapsed time, elevation — Phase 9) and
+  `calculateStatistics()` (moving time, same 0.3 m/s moving threshold as
+  live tracking — Phase 7). Analytics only sums, averages, and finds maxima
+  over those normalized values.
+- **Date semantics (documented contract in the module):** windows are UTC
+  calendar days. `{days: N}` = [UTC midnight(ref) − (N−1) days, UTC midnight
+  of the day after ref) — start midnight INCLUSIVE, next-day midnight
+  EXCLUSIVE. Future dates and missing/invalid dates are excluded from every
+  windowed result but included in `'all'` results. No local-timezone
+  involvement anywhere.
+- **Trip reference date** (which date a trip "happened" on):
+  `endDate → startDate → plannedDate → createdAt` — real fields only.
+- **API:** `computeTripAnalytics` (status counts incl. cancelled,
+  distance/elapsed/moving totals, elevation totals, `hasElevation` honesty
+  flag, averages over trips WITH routes, personal records linked to source
+  trip), `summarizeByActivity` (only activity types present, stable domain
+  order), `buildTrendSeries` (contiguous zero-filled day/week/month buckets,
+  ISO Monday weeks, deterministic default granularity per window),
+  `resolveWindow` / `filterByWindow` / `tripReferenceDate` /
+  `latestRecordDate` / `utcDayStart` / `emptyTripAnalytics`.
+- **Records:** longest distance, largest ascent (>0 required), highest
+  elevation (0 m accepted as real data, null when no altitude), longest
+  moving time (>0 required). Ties resolve to first record in input order
+  (documented; callers pass stable order).
+
+### Tests (58 new; suite total 168/168)
+Empty dataset; single trip; multiple trips; distance/elapsed/elevation
+totals; averages (incl. null case); 7/30/90/365-day and all-time windows;
+exact boundaries (start-midnight included, 1 ms before excluded,
+end-midnight excluded); UTC-vs-local-timezone boundary behavior; future
+dates; invalid and missing dates; default reference-date determinism;
+RangeError on invalid windows/reference dates; exact bound values; activity
+grouping (stable order, window drops); all four personal records incl. tie
+and zero/sea-level edge cases; trend buckets (day/week/month, zero-fill,
+default granularity, invalid-date exclusion); adapter cross-checked against
+the canonical functions (incl. stationary routes, altitude-0 handling);
+full pipeline over six realistic Trip + recorded-point fixtures; input-order
+independence of totals. Real project types throughout; no `any`.
+
+### Validation
+- `npm run lint` — 0 errors (17 pre-existing warnings, none in new files)
+- `npx tsc --noEmit` — pass
+- `npx vitest run` — 168/168 pass
+- `npm run build` — pass
+- Secrets scan on changed files — clean
+
+### Build fix in the same session (`304505e`)
+`next/font/google` fetched Inter from fonts.googleapis.com at build time,
+which breaks builds in network-restricted environments. The variable Inter
+latin subset (wght 100–900, SIL OFL) is now committed under
+`src/app/fonts/` and loaded via `next/font/local` — builds are fully
+deterministic and no longer depend on a third-party CDN.
+
+### Known limitations (11A)
+- Domain only: no data access or UI yet (11B/11C).
+- Historical moving time is computed in TypeScript from stored route points
+  (11B defines the data path). Deliberately NO SQL re-implementation of the
+  Haversine/elevation math — one implementation per rule.
+- No cross-trip average speed metric (per-trip speed remains on the route
+  page); aggregates stay honest (time and distance totals instead).
+
+**Next milestone:** 11B — Historical Aggregation (server-side data access
+for analytics, bulk route-point fetch, no per-trip N+1).
+
+---
+
 **Last Updated:** 2026-09-05
-**Current Phase:** Phase 10 - Elevation Profile & GPX Export (Complete)
-**Latest Commit:** 62b59cd
+**Current Phase:** Phase 11 - Trip Analytics (11A Complete, 11B Next)
+**Latest Commit:** 4f698b0
