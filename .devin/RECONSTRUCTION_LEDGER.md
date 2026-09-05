@@ -612,11 +612,45 @@ Phase 7 map stack and design language.
 - No route export (GPX/CSV).
 - Map tiles require network; no offline tile cache.
 
-**Next milestone:** Phase 10 — elevation profile chart, GPX export, or
-dashboard analytics (owner's call).
+**Next milestone:** Phase 11 — or owner-directed work.
+
+---
+
+## PHASE 10 — ELEVATION PROFILE & GPX EXPORT (Complete)
+
+**Commit:** 9c09c04 `feat: implement elevation profile and GPX export`
+
+### Domain (pure, fully unit-tested)
+- `src/lib/domain/tracking/elevation.ts` — `buildElevationProfile(points, sampleCount?)`:
+  builds a distance-indexed altitude series from REAL recorded fixes only
+  (no interpolation); honest `hasElevation` gate (needs ≥2 altitude fixes);
+  downsample-capped samples (default 200); gain/loss over sampled series.
+- `src/lib/domain/tracking/gpx.ts` — `buildGpx(points, {name, description})`:
+  GPX 1.1 track document with metadata (name/desc/time/bounds), `<trk>/<trkseg>/<trkpt>`,
+  XML-escaped metadata, `<ele>` omitted when altitude is absent, full precision coords
+  (7 dp), ISO timestamps; `escapeXml`, `gpxFilename` (sanitized filename).
+
+### UI
+- `ElevationProfileChart.tsx` — dependency-free SVG area/line chart (keeps the
+  bundle lean; no chart library), tabular-nums axis summary, `role="img"` +
+  aria-label, plus an sr-only data table for screen readers.
+- `GpxExportButton.tsx` — client-side Blob download from already-fetched route
+  data (no extra server round-trip), error surfaced via `role="alert"`.
+- `/trips/[id]/route` now shows the elevation profile section (only when real
+  altitude exists) and the GPX export action.
+
+### Validation
+- vitest: 110/110 (14 new: elevation profile 7, GPX 7)
+- tsc --noEmit clean; lint 0 errors; production build pass; pushed & verified.
+
+### Known limitations
+- Profile samples are recorded fixes only — very sparse altitude data yields a
+  coarse profile (by design; we do not smooth or interpolate).
+- GPX export is client-side; no server-side export history or email delivery.
+- No offline tile cache for the map (unchanged from Phase 9).
 
 ---
 
 **Last Updated:** 2026-09-05
-**Current Phase:** Phase 9 - Trip Route History & Statistics (Complete)
-**Latest Commit:** ac5ffdd
+**Current Phase:** Phase 10 - Elevation Profile & GPX Export (Complete)
+**Latest Commit:** 9c09c04
