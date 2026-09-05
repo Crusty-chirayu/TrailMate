@@ -7,6 +7,8 @@ import type {
   Difficulty,
   Visibility,
 } from '@/types/domain'
+import { validateTripInput, isActivityType } from './validation'
+import { assertCanTransition, lifecycleDatesForTransition } from './lifecycle'
 
 export interface TripWriteFields {
   title?: string
@@ -105,6 +107,21 @@ export class TripService {
     return data.map(tripRowToDomain)
   }
 
+  static async getFilteredTrips(filters: { search?: string; status?: string; activity?: string }) {
+    const all = await TripService.getAllTrips()
+    const search = (filters.search ?? '').trim().toLowerCase()
+    const normalizedStatus = filters.status?.trim() ?? ''
+    const normalizedActivity = filters.activity?.trim() ?? ''
+    const validStatus = ['planned', 'active', 'completed', 'cancelled'].includes(normalizedStatus) ? normalizedStatus : undefined
+    const validActivity = ['trekking', 'cycling', 'camping', 'other'].includes(normalizedActivity) ? normalizedActivity : undefined
+    return all.filter(t => {
+      if (validStatus && t.status !== validStatus) return false
+      if (validActivity && t.activityType !== validActivity) return false
+      if (search && !t.title.toLowerCase().includes(search)) return false
+      return true
+    })
+  }
+
   static async getTripById(id: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -134,15 +151,56 @@ export class TripService {
     estimatedElevationGain?: number
     estimatedDuration?: number
     difficulty?: Difficulty
+    visibility?: Visibility
+    status?: TripStatus
+    startDate?: Date
+    endDate?: Date
   }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       throw new Error('User not authenticated')
     }
 
-    const insertData: TripInsert = tripCreateToDatabase(trip, user.id)
+    // Server-side authoritative validation
+    const v = validateTripInput(
+      {
+        title: trip.title,
+        description: trip.description ?? null,
+        activityType: trip.activityType,
+        plannedDate: trip.plannedDate ?? null,
+        estimatedDistance: trip.estimatedDistance ?? null,
+        estimatedElevationGain: trip.estimatedElevationGain ?? null,
+        estimatedDuration: trip.estimatedDuration ?? null,
+        difficulty: trip.difficulty ?? null,
+        visibility: trip.visibility ?? null,
+        status: trip.status ?? null,
+        startDate: trip.startDate ?? null,
+        endDate: trip.endDate ?? null,
+      },
+      { isUpdate: false },
+    )
+    if (!v.valid) throw new Error(v.errors.join('; '))
+    if (!isActivityType(trip.activityType)) throw new Error(`Invalid activity_type: ${trip.activityType}`)
+
+    const insertData: TripInsert = tripCreateToDatabase(
+      {
+        title: trip.title.trim(),
+        description: trip.description ?? undefined,
+        activityType: trip.activityType,
+        plannedDate: trip.plannedDate ?? undefined,
+        startDate: trip.startDate ?? undefined,
+        endDate: trip.endDate ?? undefined,
+        status: trip.status ?? 'planned',
+        estimatedDistance: trip.estimatedDistance ?? undefined,
+        estimatedElevationGain: trip.estimatedElevationGain ?? undefined,
+        estimatedDuration: trip.estimatedDuration ?? undefined,
+        difficulty: trip.difficulty ?? undefined,
+        visibility: trip.visibility ?? 'private',
+      },
+      user.id,
+    )
 
     const { data, error } = await supabase
       .from('trips')
@@ -171,12 +229,97 @@ export class TripService {
   }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       throw new Error('User not authenticated')
     }
 
-    const updateData = tripUpdatesToDatabase(updates)
+    // Validate activity if supplied
+    if (updates.activityType !== undefined && updates.activityType !== null) {
+      if (!isActivityType(updates.activityType as string)) {
+        throw new Error(`Invalid activity_type: ${updates.activityType}`)
+      }
+    }
+
+    // Validate input fields server-side (partial)
+    const needsValidation =
+      updates.title !== undefined ||
+      updates.description !== undefined ||
+      updates.activityType !== undefined ||
+      updates.plannedDate !== undefined ||
+      updates.startDate !== undefined ||
+      updates.endDate !== undefined ||
+      updates.status !== undefined ||
+      updates.difficulty !== undefined ||
+      updates.visibility !== undefined ||
+      updates.estimatedDistance !== undefined ||
+      updates.estimatedElevationGain !== undefined ||
+      updates.estimatedDuration !== undefined
+
+    if (needsValidation) {
+      const v = validateTripInput(
+        {
+          title: updates.title as string | null | undefined,
+          description: updates.description as string | null | undefined,
+          activityType: updates.activityType as string | null | undefined,
+          plannedDate: updates.plannedDate as Date | null | undefined,
+          startDate: updates.startDate as Date | null | undefined,
+          endDate: updates.endDate as Date | null | undefined,
+          status: updates.status as string | null | undefined,
+          difficulty: updates.difficulty as string | null | undefined,
+          visibility: updates.visibility as string | null | undefined,
+          estimatedDistance: updates.estimatedDistance as number | null | undefined,
+          estimatedElevationGain: updates.estimatedElevationGain as number | null | undefined,
+          estimatedDuration: updates.estimatedDuration as number | null | undefined,
+        },
+        { isUpdate: true },
+      )
+      if (!v.valid) throw new Error(v.errors.join('; '))
+    }
+
+    // Enforce lifecycle if status is changing
+    const effectiveUpdates: typeof updates = { ...updates }
+
+    if (updates.status !== undefined) {
+      // Need current trip to validate transition and derive dates
+      const { data: currentRow, error: fetchError } = await supabase
+        .from('trips')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single()
+      if (fetchError) throw fetchError
+      const current = tripRowToDomain(currentRow as TripRow)
+      if (updates.status !== current.status) {
+        assertCanTransition(current.status, updates.status as TripStatus)
+        const dates = lifecycleDatesForTransition(current.status, updates.status as TripStatus, {
+          startDate: current.startDate,
+          plannedDate: current.plannedDate,
+          endDate: current.endDate,
+        })
+        // Only apply auto dates if caller did not explicitly supply that field
+        if (dates.startDate !== undefined && effectiveUpdates.startDate === undefined) {
+          effectiveUpdates.startDate = dates.startDate ?? null
+        }
+        if (dates.endDate !== undefined && effectiveUpdates.endDate === undefined) {
+          effectiveUpdates.endDate = dates.endDate ?? null
+        }
+      }
+    }
+
+    const updateData = tripUpdatesToDatabase(effectiveUpdates)
+
+    // No-op guard: if caller sent empty object, do not hit DB with empty update
+    if (Object.keys(updateData).length === 0) {
+      const { data: existing, error: readError } = await supabase
+        .from('trips')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single()
+      if (readError) throw readError
+      return tripRowToDomain(existing as TripRow)
+    }
 
     const { data, error } = await supabase
       .from('trips')
@@ -189,6 +332,16 @@ export class TripService {
     if (error) throw error
 
     return tripRowToDomain(data)
+  }
+
+  /** Transition planned → active, setting start_date and preserving other fields. */
+  static async startTrip(id: string) {
+    return TripService.updateTrip(id, { status: 'active' })
+  }
+
+  /** Transition active → completed, setting end_date. */
+  static async completeTrip(id: string) {
+    return TripService.updateTrip(id, { status: 'completed' })
   }
 
   static async deleteTrip(id: string) {
