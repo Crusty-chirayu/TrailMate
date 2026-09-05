@@ -81,6 +81,10 @@ export class TripAnalyticsService {
     const tripList = trips ?? (await TripService.getAllTrips())
     if (tripList.length === 0) return []
 
+    // Imported GPX routes are deliberately treated exactly like live GPS
+    // tracking: both persist the same `route_points` rows, so every metric
+    // below (distance, moving time, elevation, records, trends) is computed
+    // from recorded points with no per-origin special-casing.
     const points = await TrackingService.getRoutePointsForTrips(tripList.map(t => t.id))
     return buildActivityRecords(tripList, groupRoutePointsByTrip(points))
   }
