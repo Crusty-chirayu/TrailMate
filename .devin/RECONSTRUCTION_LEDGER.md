@@ -565,10 +565,58 @@ live foreign-key dependencies for reads. Consequences:
 - CRUD service tests require a live Supabase instance; domain logic (progress,
   validation, grouping, weight) is fully unit-tested instead.
 
-**Next milestone:** Phase 9 — route visualization history / trip statistics views (owner's call).
+**Next milestone:** Phase 10 — dashboards/analytics or export (owner's call).
+
+---
+
+## PHASE 9 — TRIP ROUTE HISTORY & STATISTICS (Complete)
+
+**Commit:** ac5ffdd `feat: implement trip route history and statistics`
+
+### Architecture
+- **Pure domain module** `src/lib/domain/tracking/routeStats.ts`:
+  `computeRouteStats(points)` → totalDistance (Haversine, rounded), elevationGain/Loss,
+  max/min elevation, hasElevation, duration (from timestamps), averageSpeed, pointCount,
+  startedAt/endedAt. No I/O — fully unit-tested (9 tests).
+- **Correctness fixes over the old inline `calculateRouteStats`**:
+  - altitude `0` is now treated as valid data (was discarded by falsy check)
+  - min/max include the first point and single-point routes
+  - elevation is honestly reported as "not available" when no altitude exists
+    (previously fake 0s)
+  - `TrackingService.calculateRouteStats` now delegates to the pure module.
+- **Page** `/trips/[id]/route` (server component): loads route points via
+  existing `TrackingService.getRoutePointsByTripId` (RLS via trip ownership),
+  computes stats, renders:
+  - static route map `src/components/tracking/RouteHistoryMap.tsx` — Leaflet/
+    react-leaflet (same OSS choice as Phase 7, no API key), fits viewport to the
+    route once, start (green) / end (amber) markers, no live-tracking behavior
+  - stats grid: distance, elapsed time, average speed, point count, ascent,
+    descent, highest/lowest point, elevation-data availability badge
+  - empty state with pointer to the GPS tracker
+- Trip detail page gained a "Route History" card linking to the new page.
+
+### Reused (no duplication)
+TrackingService route-point fetch, Haversine geo, tracking formatters
+(`formatDistance/formatSpeed/formatTime/formatElevation`), Button/Card/Badge,
+Phase 7 map stack and design language.
+
+### Validation
+- vitest: 96/96 (9 new routeStats tests)
+- tsc --noEmit: clean
+- lint: 0 errors
+- production build: all routes present including `/trips/[id]/route`
+- secrets scan: clean; pushed to origin/main and verified
+
+### Known limitations
+- No elevation-profile chart yet (ascent/descent/min/max only).
+- No route export (GPX/CSV).
+- Map tiles require network; no offline tile cache.
+
+**Next milestone:** Phase 10 — elevation profile chart, GPX export, or
+dashboard analytics (owner's call).
 
 ---
 
 **Last Updated:** 2026-09-05
-**Current Phase:** Phase 8 - Gear System (Complete)
-**Latest Commit:** 16bf2e6
+**Current Phase:** Phase 9 - Trip Route History & Statistics (Complete)
+**Latest Commit:** ac5ffdd
