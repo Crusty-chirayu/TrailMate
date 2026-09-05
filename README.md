@@ -1,426 +1,191 @@
-<div align="center">
+# TrailMate
 
-<img src="https://raw.githubusercontent.com/Naereen/badges/master/all-the-badges/svg/misc/awesome.svg" width="1" height="1" alt="" />
+TrailMate is an outdoor trip planner and foreground GPS trail recorder built
+with Next.js, TypeScript, Supabase, PostgreSQL, Leaflet, and IndexedDB. It keeps
+route analytics tied to recorded points rather than estimated or fabricated
+activity data.
 
-# 🏔️ TrailMate
+## Project status
 
-### Outdoor Trip Planning & GPS Trail Tracking, Reimagined
+Phase 11 analytics is complete. Phase 12A hardens the database, environment
+handling, route boundary, and browser security configuration.
 
-<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&pause=1000&color=10B981&center=true&vCenter=true&width=600&lines=Plan+your+next+trek+in+minutes;Log+GPS+waypoints+in+real+time;Never+forget+gear+again;Works+fully+offline+too" alt="Typing SVG" />
+### Implemented
 
-<br />
+- Supabase email/password authentication and cookie-backed sessions
+- Trip planning, listing, detail, deletion, and basic status handling
+- Foreground browser GPS recording with quality filtering
+- Durable IndexedDB route/session storage and resumable recording
+- RLS-protected synchronization of route points to Supabase
+- Live and historical Leaflet route maps
+- Route distance, duration, speed, and elevation statistics
+- Elevation profile and GPX export
+- Gear templates and snapshot-based trip packing checklists
+- Server-rendered expedition analytics, activity summaries, trends, and records
 
-[![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-Dark%20Theme-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
+### Not currently implemented
 
-[![Stars](https://img.shields.io/github/stars/Crusty-chirayu/TrailMate?style=social)](https://github.com/Crusty-chirayu/TrailMate/stargazers)
-[![Forks](https://img.shields.io/github/forks/Crusty-chirayu/TrailMate?style=social)](https://github.com/Crusty-chirayu/TrailMate/network/members)
-[![Last Commit](https://img.shields.io/github/last-commit/Crusty-chirayu/TrailMate?color=emerald)](https://github.com/Crusty-chirayu/TrailMate/commits/main)
-[![Open Issues](https://img.shields.io/github/issues/Crusty-chirayu/TrailMate?color=amber)](https://github.com/Crusty-chirayu/TrailMate/issues)
+- GPX or KML import
+- Public trail pages or trip sharing
+- Installable PWA/service worker support
+- Background GPS recording after the browser closes the page
+- Offline map tiles or offline gear/trip mutations
+- Production deployment verification
 
-<br />
+Map tiles require network access. GPS points continue to be written locally
+while connectivity is unavailable and are eligible for later synchronization,
+but account-scoped IndexedDB isolation and retry hardening remain future work.
 
-<img src="https://user-images.githubusercontent.com/74038190/212284100-561aa473-3905-4a80-b561-0d28506553ee.gif" width="500">
+## Runtime requirements
 
-</div>
+- Node.js `>=20.9.0`
+- npm 10 or newer
+- A Supabase project for authentication and persistent application data
 
----
+The application uses Next.js 16.3.4, React 19, TypeScript in strict mode,
+Tailwind CSS 3, Supabase SSR, and PostgreSQL with Row Level Security.
 
-## 🚧 Project Status
-
-> **TL;DR: Core is working, polish is in progress.**
-
-<div align="center">
-
-| Module | Status | Progress |
-|---|---|---|
-| Auth & Session System | ✅ Stable | ![100%](https://progress-bar.xyz/100/?title=done&color=10b981) |
-| Dashboard | ✅ Stable | ![100%](https://progress-bar.xyz/100/?title=done&color=10b981) |
-| Trips Manager | ✅ Stable | ![95%](https://progress-bar.xyz/95/?title=done&color=10b981) |
-| GPS Trail Recorder | 🟡 Functional, needs map view | ![80%](https://progress-bar.xyz/80/?title=in+progress&color=f59e0b) |
-| Gear & Checklist Manager | ✅ Stable | ![90%](https://progress-bar.xyz/90/?title=done&color=10b981) |
-| Local Scaffolding / Offline Mode | ✅ Stable | ![100%](https://progress-bar.xyz/100/?title=done&color=10b981) |
-| Map Visualizer (Leaflet/Mapbox) | ⬜ Not started | ![0%](https://progress-bar.xyz/0/?title=planned&color=6366f1) |
-| GPX / KML Export & Import | ⬜ Not started | ![0%](https://progress-bar.xyz/0/?title=planned&color=6366f1) |
-| Elevation Profile Chart | ⬜ Not started | ![0%](https://progress-bar.xyz/0/?title=planned&color=6366f1) |
-| Offline PWA Support | ⬜ Not started | ![0%](https://progress-bar.xyz/0/?title=planned&color=6366f1) |
-
-**Overall: ~65% toward the v1.0 milestone** (core CRUD + auth + GPS logging + gear tracking are done; map visualization, export, and PWA support are the remaining big pieces).
-
-</div>
-
-> 🛠️ A heads-up for anyone watching this repo: development is currently a little slower than usual — the maintainer ([@Crusty-chirayu](https://github.com/Crusty-chirayu)) is juggling a few other projects and some unforeseen interruptions at the moment. TrailMate isn't abandoned — active development and deployment are planned to resume and this project **will** be completed and shipped. Stars, issues, and PRs are very welcome in the meantime and help keep momentum going! ⭐
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [File Tree](#file-tree)
-- [Database Schema](#database-schema)
-- [Core Feature Modules](#core-feature-modules)
-- [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
-- [Database Setup](#database-setup)
-- [Development](#development)
-- [Production Build](#production-build)
-- [Local Scaffolding / Offline Mode](#local-scaffolding--offline-mode)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
-
----
-
-## Overview
-
-| | |
-|---|---|
-| **Project** | TrailMate |
-| **Tagline** | Outdoor Trip Planning & GPS Trail Tracking Web Platform |
-| **Use Cases** | 🥾 Trekking · 🚶 Hiking · 🚴 Mountain Biking / Cycling · ⛺ Camping & Backpacking |
-| **Core Value** | Plan trips, log GPS waypoints (lat/lng/elevation/timestamp), manage gear packing lists, review real expedition analytics (windowed totals, distance trend, personal records) — sync with Supabase Postgres, or run fully offline in Local Scaffolding Mode |
-
----
-
-## Tech Stack
-
-<div align="center">
-
-![Next.js](https://skillicons.dev/icons?i=nextjs) ![TypeScript](https://skillicons.dev/icons?i=typescript) ![Tailwind](https://skillicons.dev/icons?i=tailwind) ![Supabase](https://skillicons.dev/icons?i=supabase) ![Postgres](https://skillicons.dev/icons?i=postgres)
-
-</div>
-
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 14 (App Router, Server & Client Components) |
-| Language | TypeScript — strict mode, full DB type safety |
-| Styling | Tailwind CSS — dark theme (Slate‑950/900 bg, Emerald accents, Amber tracking indicators, Purple gear highlights) |
-| Icons | `lucide-react` |
-| Backend & Auth | Supabase (PostgreSQL + Supabase Auth + `@supabase/ssr` v0.12+) |
-| Session Management | Next.js Middleware (`src/middleware.ts`) + `createServerClient` (server) + `createBrowserClient` (client singleton) + custom `useAuth()` hook |
-
----
-
-## Architecture
-
-TrailMate follows the Next.js App Router convention with a clean separation between:
-
-- **Server-rendered pages** for data-heavy views (dashboard, trip lists)
-- **Client components** for interactive features (GPS tracking, gear checklists)
-- **A dual-mode data layer** — Supabase Postgres when configured, transparent `localStorage` fallback (`MockStorage`) when it isn't
-
-Session state flows through three coordinated layers:
-
-1. **Middleware** (`src/middleware.ts` → `lib/supabase/middleware.ts`) refreshes auth cookies on every request via `getAll` / `setAll` handlers.
-2. **Server client** (`lib/supabase/server.ts`) reads cookies for RSC/server actions.
-3. **Browser singleton** (`lib/supabase/client.ts`) + `useAuth()` hook keeps client components in sync via `getSession()` and `onAuthStateChange()`.
-
-```mermaid
-flowchart LR
-    A[Browser] -->|cookies| B(Next.js Middleware)
-    B --> C{Session valid?}
-    C -->|yes| D[Server Components / Actions]
-    C -->|refresh| E[Supabase Auth]
-    E --> B
-    D --> F[(Supabase Postgres)]
-    A -->|client actions| G[Browser Supabase Client]
-    G --> F
-    A -.->|no env vars| H[[MockStorage - localStorage]]
-```
-
----
-
-## File Tree
-
-```
-trailmate/
-├── .env.example                  # Template for Supabase credentials
-├── .env.local                    # Active local env (NEXT_PUBLIC_SUPABASE_URL & ANON_KEY)
-├── next.config.mjs                # Next.js configuration
-├── package.json                   # Project dependencies
-├── postcss.config.mjs             # PostCSS configuration for Tailwind
-├── tailwind.config.ts             # Tailwind CSS configuration
-├── tsconfig.json                  # TypeScript compiler config
-├── supabase/
-│   └── schema.sql                 # Full PostgreSQL table DDL, RLS policies & indexes
-└── src/
-    ├── middleware.ts              # Root middleware invoking updateSession
-    ├── app/
-    │   ├── layout.tsx             # App Shell wrapper with sticky top Navigation & Footer
-    │   ├── page.tsx               # Expedition Log dashboard (windowed analytics, distance trend, activity breakdown, personal records)
-    │   ├── globals.css            # Global Tailwind directives & dark mode variables
-    │   ├── login/page.tsx         # Supabase Auth Log In page (Suspense boundary wrapped)
-    │   ├── signup/page.tsx        # Supabase Auth Sign Up page
-    │   ├── auth/
-    │   │   └── callback/          # Auth callback route handler for PKCE code exchange
-    │   ├── trips/
-    │   │   ├── page.tsx           # Trips List (filterable by status & activity)
-    │   │   ├── new/page.tsx       # New Trip Planner form with live session status
-    │   │   └── [id]/page.tsx      # Trip Detail & GPS Route Point Logger
-    │   └── gear/
-    │       └── page.tsx           # Gear Template & Packing List Manager
-    ├── components/
-    │   └── Navigation.tsx         # Responsive Navbar with live auth indicator & mobile drawer
-    ├── lib/
-    │   ├── hooks/
-    │   │   └── useAuth.ts         # Unified hook for session state & auth changes
-    │   ├── supabase/
-    │   │   ├── client.ts          # Browser client singleton (createBrowserClient)
-    │   │   ├── server.ts          # Server client for App Router (createServerClient + cookies)
-    │   │   └── middleware.ts      # Session refresh middleware (getAll/setAll cookie handlers)
-    │   └── mockStore.ts           # LocalStorage fallback store for unauthenticated scaffolding
-    └── types/
-        └── database.ts            # TypeScript database models and interfaces
-```
-
----
-
-## Database Schema
-
-TrailMate runs on PostgreSQL via Supabase with **Row Level Security (RLS)** enabled on every table. Full DDL lives in [`supabase/schema.sql`](./supabase/schema.sql).
-
-### `trips`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | UUID | PK, `gen_random_uuid()` |
-| `user_id` | UUID | FK → `auth.users(id)` ON DELETE CASCADE, NOT NULL |
-| `title` | TEXT | NOT NULL |
-| `activity_type` | TEXT | NOT NULL, CHECK IN `'trekking'`, `'cycling'`, `'camping'`, `'other'` |
-| `planned_date` | DATE | Nullable |
-| `status` | TEXT | NOT NULL, DEFAULT `'planned'`, CHECK IN `'planned'`, `'active'`, `'completed'`, `'cancelled'` |
-| `created_at` | TIMESTAMPTZ | DEFAULT `now()` |
-
-**Indexes:** `idx_trips_user_id`, `idx_trips_status`
-
-### `route_points` (GPS Waypoints)
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | UUID | PK, `gen_random_uuid()` |
-| `trip_id` | UUID | FK → `trips(id)` ON DELETE CASCADE, NOT NULL |
-| `lat` | DOUBLE PRECISION | NOT NULL |
-| `lng` | DOUBLE PRECISION | NOT NULL |
-| `elevation` | DOUBLE PRECISION | Nullable |
-| `recorded_at` | TIMESTAMPTZ | DEFAULT `now()` |
-| `synced` | BOOLEAN | DEFAULT `true` |
-
-**Indexes:** `idx_route_points_trip_id`, `idx_route_points_recorded_at`
-
-### `gear_templates`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | UUID | PK, `gen_random_uuid()` |
-| `user_id` | UUID | FK → `auth.users(id)` ON DELETE CASCADE, NOT NULL |
-| `name` | TEXT | NOT NULL |
-| `created_at` | TIMESTAMPTZ | DEFAULT `now()` |
-
-**Indexes:** `idx_gear_templates_user_id`
-
-### `gear_items`
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | UUID | PK, `gen_random_uuid()` |
-| `template_id` | UUID | FK → `gear_templates(id)` ON DELETE CASCADE, NOT NULL |
-| `item_name` | TEXT | NOT NULL |
-| `checked` | BOOLEAN | DEFAULT `false` |
-| `created_at` | TIMESTAMPTZ | DEFAULT `now()` |
-
-**Indexes:** `idx_gear_items_template_id`
-
-### Entity Relationship Diagram
-
-```
-auth.users
-    │ 1
-    │
-    ├──────────────┐
-    │ N             │ N
-┌───▼─────┐   ┌─────▼──────────┐
-│  trips  │   │ gear_templates │
-└───┬─────┘   └─────┬──────────┘
-    │ 1               │ 1
-    │ N               │ N
-┌───▼──────────┐ ┌────▼───────┐
-│ route_points │ │ gear_items │
-└──────────────┘ └────────────┘
-```
-
-### Row Level Security Policies
-
-| Table | Policy Logic |
-|---|---|
-| `trips` | `auth.uid() = user_id` for SELECT / INSERT / UPDATE / DELETE |
-| `route_points` | `EXISTS (SELECT 1 FROM trips WHERE trips.id = route_points.trip_id AND trips.user_id = auth.uid())` |
-| `gear_templates` | `auth.uid() = user_id` for SELECT / INSERT / UPDATE / DELETE |
-| `gear_items` | `EXISTS (SELECT 1 FROM gear_templates WHERE gear_templates.id = gear_items.template_id AND gear_templates.user_id = auth.uid())` |
-
----
-
-## Core Feature Modules
-
-### 1. 🔐 Auth & Session System
-- Email & password sign up / log in via Supabase Auth.
-- Browser singleton Supabase client — prevents duplicate client instances.
-- Unified `useAuth()` hook: initializes session via `getSession()`, listens for changes via `onAuthStateChange()`.
-- `updateSession` middleware refreshes `@supabase/ssr` cookies on every server request.
-- 300ms cookie flush delay on login to avoid redirect race conditions.
-
-### 2. 📊 Expedition Log Dashboard (`/`)
-- Primary metrics computed only from recorded routes: Total distance, Completed trips, Elevation gained, Moving time — with an honest "no altitude data" state instead of invented zeros.
-- Time-window comparison (7 / 30 / 90 days, last year, all time) driven by the `?window=` search param — plain links, no client-side state.
-- Distance trend: dependency-free SVG bar chart (day/week/month buckets, zero-filled) with a screen-reader summary and a full data table.
-- Activity breakdown: trips, distance and ascent per activity for the window — only activity types that actually exist.
-- Personal records: all-time longest distance, largest ascent, highest elevation and longest moving time, each linked to its source trip.
-- Recent Adventures feed and quick-action shortcuts (new trip, continue tracking, gear).
-
-### 3. 🗺️ Trips Manager (`/trips`, `/trips/new`)
-- Filter by Status (Planned / Active / Completed / Cancelled) and Activity Type (Trekking / Cycling / Camping / Other).
-- Trip creation bound to `auth.uid()`, with live auth status indicator.
-- Delete trips with confirmation modal.
-
-### 4. 📍 GPS Trail Recorder (`/trips/[id]`)
-- Route stats: total waypoints, latest elevation (m), current coordinates.
-- Start/Stop GPS Tracking toggle using `navigator.geolocation`.
-- Synthetic fallback GPS generator when location permission is denied.
-- Manual waypoint entry (lat / lng / elevation).
-- Route Points table: Waypoint #, Lat, Lng, Elevation, Timestamp, Sync state.
-- Live tracking map and route history map (dependency-free SVG — no map SDK or tile server).
-- Elevation profile chart: altitude vs. distance with start/end and min/max markers plus a hover readout.
-- GPX export of the recorded route; GPX import stored as the trip's recorded route points (so imports feed the same analytics pipeline as live tracking).
-
-### 5. 🎒 Gear & Checklist Manager (`/gear`)
-- Create/delete gear templates (e.g. "3-Season Backpacking", "Day Cycling").
-- Add items inline; toggle checked state.
-- Real-time packing progress bar (% ready).
-
-### 6. 💾 Local Scaffolding / Fallback Mode
-- Missing or placeholder Supabase env vars → app auto-switches to `MockStorage` (`localStorage`-backed).
-- Enables offline UI testing without crashing or requiring a live backend.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+ or 20+
-- npm 10+
-- A Supabase project — free tier at [supabase.com](https://supabase.com)
-
-### Installation
+## Local setup
 
 ```bash
 git clone https://github.com/Crusty-chirayu/TrailMate.git
 cd TrailMate
-npm install
+npm ci
+cp .env.example .env.local
 ```
 
----
-
-## Environment Variables
-
-Create a `.env.local` file in the project root:
+Set the two public browser values in `.env.local`:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-or-publishable-key
 ```
 
-> A `.env.example` template is included — copy it and fill in your project credentials. If these values are left unset, TrailMate automatically falls back to **Local Scaffolding Mode**.
+Environment files other than `.env.example` are intentionally ignored. Never
+commit `.env.local`, a service-role key, database password, or another server
+secret. A Supabase anon/publishable key is designed for browser use, but it must
+still be paired with correct RLS and should not be stored in tracked environment
+files.
 
----
+Earlier repository history contained configured Supabase values. Those values
+must be treated as exposed and rotated in the Supabase dashboard. The current
+repository is secured without rewriting public Git history.
 
-## Database Setup
-
-1. Open your Supabase project → **SQL Editor**.
-2. Open [`supabase/schema.sql`](./supabase/schema.sql) from this repo.
-3. Paste the contents into the SQL Editor and click **Run**.
-4. Confirm the following exist under the `public` schema:
-   - Tables: `trips`, `route_points`, `gear_templates`, `gear_items`
-   - RLS policies on all four tables
-   - Indexes listed in [Database Schema](#database-schema)
-
----
-
-## Development
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+## Database setup and migrations
 
----
+`supabase/migrations/` is the authoritative database history.
 
-## Production Build
+- `0001_tracking_phase7.sql` retains its historical version/name for migration
+  compatibility, but now contains the complete fresh-install Phase 12A baseline.
+- `0002_gear_system.sql` is an idempotent compatibility migration.
+- `20260906000100_phase12a_security_hardening.sql` safely reconciles existing
+  databases, resets the RLS policy surface, adds integrity checks, and enforces
+  template-assignment uniqueness.
+- `supabase/schema.sql` is a readable snapshot of the resulting schema. It is
+  not an upgrade script and must not be applied over an existing database.
+
+With the Supabase CLI linked to the intended project, apply migrations in order:
 
 ```bash
-npm run build
-npm start
+supabase link --project-ref your-project-ref
+supabase db push
 ```
 
----
+Before migrating an existing production project, take a database backup. The
+Phase 12A migration does not delete route or packing rows and does not clamp or
+invent measured GPS values. New checks are added `NOT VALID` on existing
+installations so they immediately protect new writes without silently changing
+legacy measurements. After deployment:
 
-## Local Scaffolding / Offline Mode
+1. Run `supabase/verification/phase12a_production_checks.sql` in the SQL editor.
+2. Confirm RLS is enabled for all five application tables.
+3. Confirm `anon` has no table privileges.
+4. Review any unvalidated constraints and remediate legacy rows deliberately.
+5. Run `ALTER TABLE ... VALIDATE CONSTRAINT ...` for each reviewed constraint.
 
-If `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` are missing or left as placeholder values, TrailMate transparently swaps its data layer for `lib/mockStore.ts`, a `localStorage`-backed store. This lets you:
+A fresh database receives validated constraints directly from the baseline.
+Live database verification is still required because static repository checks
+cannot prove the state of a hosted Supabase project.
 
-- Evaluate the full UI without a Supabase project
-- Test trip/gear/GPS flows offline
-- Avoid runtime crashes in environments without configured credentials
+### Access model
 
-No code changes are required to switch between modes — it's detected automatically at runtime.
+All application tables have RLS enabled:
 
----
+- `trips` and `gear_templates` compare `user_id` with `auth.uid()`.
+- `route_points` authorize through their owning trip.
+- `gear_items` authorize through their owning template.
+- `trip_packing_items` authorize through their owning trip.
+
+Each table has explicit `SELECT`, `INSERT`, `UPDATE`, and `DELETE` policies for
+`authenticated`. Table privileges are revoked from `anon`. No service-role key
+is used by the application.
+
+## Security controls
+
+The Next.js configuration sets:
+
+- Content Security Policy
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- a restrictive `Permissions-Policy` with geolocation limited to self
+- `X-Content-Type-Options: nosniff`
+- frame denial through both CSP and `X-Frame-Options`
+- production HSTS
+- removal of the `X-Powered-By` response header
+
+The CSP permits only the external origins currently required by the product:
+Supabase HTTPS/WebSocket endpoints and OpenStreetMap tile images. Inline script
+and style execution remains allowed because Next.js hydration and Leaflet use
+inline output under the current architecture; `unsafe-eval` is development-only.
+
+Protected trip, gear, and dashboard routes are enforced in `src/proxy.ts`.
+Unauthenticated requests redirect to `/login`; `/login`, `/signup`, and the auth
+callback remain public.
+
+## Quality commands
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm audit
+npm run db:validate
+npm run security:scan
+```
+
+`db:validate` checks migration versions, baseline/snapshot drift, RLS coverage,
+explicit policy operations, anonymous privilege revocation, important database
+constraints, assignment uniqueness, and `source_id` type alignment.
+
+`security:scan` scans tracked files without printing matched credential values.
+It also warns when environment files exist in historical commits so rotation is
+not forgotten.
+
+## Architecture
+
+- `src/app/` — App Router pages, server actions, and auth callback
+- `src/components/` — UI, tracking, packing, and analytics components
+- `src/lib/domain/` — deterministic domain rules and server data services
+- `src/lib/tracking/` — geolocation, IndexedDB persistence, and synchronization
+- `src/lib/supabase/` — typed browser/server Supabase clients
+- `src/types/` — database and domain contracts
+- `supabase/migrations/` — authoritative schema history
+- `supabase/verification/` — read-only hosted database checks
+- `scripts/security/` — schema and tracked-secret validation
+
+Raw route analytics are calculated server-side from the same canonical route
+statistics used elsewhere. GPS collection persists locally before upload so a
+network failure does not block recording.
 
 ## Roadmap
 
-Recently shipped:
-
-- ✅ **Route maps** — live tracking map and route history map as dependency-free SVG (no map SDK, no tile server).
-- ✅ **GPX Export & Import** — export the recorded route as `.gpx`; import a `.gpx` as the trip's recorded route points.
-- ✅ **Elevation Profile Chart** — dependency-free SVG plot of altitude vs. distance with start/end and min/max markers.
-- ✅ **Expedition Log Analytics** — windowed totals and averages, activity breakdown, distance trend, and all-time personal records, every value computed from recorded route data (no estimation, no fabricated metrics).
-
-Remaining before the v1.0 tag:
-
-- ⬜ **KML import** — extend the GPX pipeline to KML files.
-- ⬜ **Offline PWA Support** — add Service Workers via `@ducanh2912/next-pwa` so GPS tracking keeps working without cellular coverage.
-- ⬜ **Trip Sharing & Public Trails** — add an `is_public` boolean to `trips` to enable shareable public trail URLs.
-
-Deployment and completion are actively planned once the maintainer's schedule frees back up.
-
----
-
-## Contributing
-
-1. Fork the repository and create a feature branch.
-2. Keep TypeScript strict mode passing (`npm run build`).
-3. Follow the existing Tailwind dark-theme palette (Slate‑950/900, Emerald, Amber, Purple) for UI additions.
-4. Open a pull request with a clear description of the change and any schema migrations required.
-
-Contributions, issue reports, and even just a ⭐ are genuinely appreciated while active development is a bit slower than usual — they help keep this project moving toward a full release.
-
----
-
-## License
-
-MIT — see `LICENSE` for details.
-
-<div align="center">
-
----
-
-Made with 🥾 by [Crusty-chirayu](https://github.com/Crusty-chirayu)
-
-<img src="https://user-images.githubusercontent.com/74038190/212257467-871d32b7-e401-42e8-a166-fcfd7baa4c6b.gif" width="100">
-
-</div>
+Foundation work takes priority over new surface area. Planned later phases
+include core trip-flow reliability, account-isolated offline storage, robust
+sync retry behavior, validated route import, trip sharing, PWA support,
+end-to-end testing, CI, accessibility review, and production deployment.

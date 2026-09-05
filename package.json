@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:validate": "node scripts/security/validate-database.mjs",
+    "security:scan": "node scripts/security/scan-secrets.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

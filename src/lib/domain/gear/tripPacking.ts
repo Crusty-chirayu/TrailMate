@@ -10,10 +10,53 @@
 // were constructed with a foreign tripId.
 
 import { createClient } from '@/lib/supabase/server'
-import type { TripPackingItem, TripPackingItemInsert, TripPackingItemUpdate } from '@/types/database'
+import type {
+  GearItem,
+  TripPackingItem,
+  TripPackingItemInsert,
+  TripPackingItemUpdate,
+} from '@/types/database'
 import type { PackingItem, PackingProgress, GearCategory } from '@/types/domain'
 import { computePackingProgress } from './progress'
 import { normalizeCategory, normalizeQuantity, normalizeWeight, validateItemInput } from './validation'
+
+type TemplateAssignmentSourceItem = Pick<
+  GearItem,
+  'id' | 'item_name' | 'category' | 'quantity' | 'weight' | 'notes' | 'required' | 'sort_order'
+>
+
+/**
+ * Produces one snapshot row per source item. The database unique index is the
+ * final concurrency guard; this pure pre-filter avoids unnecessary conflicts
+ * and also tolerates malformed duplicate source rows in an input array.
+ */
+export function buildTemplateAssignmentRows(
+  tripId: string,
+  templateId: string,
+  sourceItems: readonly TemplateAssignmentSourceItem[],
+  existingSourceIds: ReadonlySet<string> = new Set(),
+): TripPackingItemInsert[] {
+  const seen = new Set(existingSourceIds)
+  const rows: TripPackingItemInsert[] = []
+  for (const item of sourceItems) {
+    if (seen.has(item.id)) continue
+    seen.add(item.id)
+    rows.push({
+      trip_id: tripId,
+      template_id: templateId,
+      source_item_id: item.id,
+      item_name: item.item_name,
+      category: item.category,
+      quantity: item.quantity,
+      weight: item.weight,
+      notes: item.notes,
+      required: item.required,
+      packed: false,
+      sort_order: item.sort_order,
+    })
+  }
+  return rows
+}
 
 export class TripPackingService {
   private static transformToDomain(db: TripPackingItem): PackingItem {
@@ -101,27 +144,24 @@ export class TripPackingService {
       (existing.data ?? []).map(row => row.source_item_id).filter((v): v is string => v !== null),
     )
 
-    const toInsert: TripPackingItemInsert[] = (sourceItems ?? [])
-      .filter(item => !alreadyAssigned.has(item.id))
-      .map(item => ({
-        trip_id: tripId,
-        template_id: templateId,
-        source_item_id: item.id,
-        item_name: item.item_name,
-        category: item.category,
-        quantity: item.quantity,
-        weight: item.weight,
-        notes: item.notes,
-        required: item.required,
-        packed: false,
-        sort_order: item.sort_order,
-      }))
+    const toInsert = buildTemplateAssignmentRows(
+      tripId,
+      templateId,
+      sourceItems ?? [],
+      alreadyAssigned,
+    )
 
     if (toInsert.length === 0) return []
 
+    // The unique (trip_id, source_item_id) index is the authoritative guard.
+    // ON CONFLICT DO NOTHING makes simultaneous assignment requests converge
+    // instead of creating duplicate snapshots or surfacing a race error.
     const { data: inserted, error: insertError } = await supabase
       .from('trip_packing_items')
-      .insert(toInsert)
+      .upsert(toInsert, {
+        onConflict: 'trip_id,source_item_id',
+        ignoreDuplicates: true,
+      })
       .select()
     if (insertError) throw insertError
 

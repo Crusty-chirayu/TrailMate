@@ -4,38 +4,42 @@ import type { RoutePoint, RoutePointInsert } from '@/types/database'
 import type { RoutePoint as DomainRoutePoint, RouteStats } from '@/types/domain'
 import { computeRouteStats } from './routeStats'
 
-export class TrackingService {
-  private static transformToDomain(dbPoint: RoutePoint): DomainRoutePoint {
-    return {
-      id: dbPoint.id,
-      tripId: dbPoint.trip_id,
-      lat: dbPoint.lat,
-      lng: dbPoint.lng,
-      elevation: dbPoint.elevation || undefined,
-      accuracy: dbPoint.accuracy || undefined,
-      recordedAt: new Date(dbPoint.recorded_at),
-      synced: dbPoint.synced,
-      metadata: (dbPoint.metadata as Record<string, unknown>) || undefined,
-    }
-  }
+export interface RoutePointWrite {
+  tripId: string
+  lat: number
+  lng: number
+  elevation?: number
+  accuracy?: number
+  metadata?: Record<string, unknown>
+}
 
-  private static transformToInsert(domain: {
-    tripId: string
-    lat: number
-    lng: number
-    elevation?: number
-    accuracy?: number
-    metadata?: Record<string, unknown>
-  }): RoutePointInsert {
-    return {
-      trip_id: domain.tripId,
-      lat: domain.lat,
-      lng: domain.lng,
-      elevation: domain.elevation || null,
-      accuracy: domain.accuracy || null,
-      metadata: (domain.metadata || {}) as Json,
-    }
+/** Database row to domain mapping; sea-level elevation (0) remains real data. */
+export function routePointRowToDomain(dbPoint: RoutePoint): DomainRoutePoint {
+  return {
+    id: dbPoint.id,
+    tripId: dbPoint.trip_id,
+    lat: dbPoint.lat,
+    lng: dbPoint.lng,
+    elevation: dbPoint.elevation ?? undefined,
+    accuracy: dbPoint.accuracy ?? undefined,
+    recordedAt: new Date(dbPoint.recorded_at),
+    synced: dbPoint.synced,
+    metadata: (dbPoint.metadata as Record<string, unknown>) ?? undefined,
   }
+}
+
+export function routePointToDatabase(domain: RoutePointWrite): RoutePointInsert {
+  return {
+    trip_id: domain.tripId,
+    lat: domain.lat,
+    lng: domain.lng,
+    elevation: domain.elevation ?? null,
+    accuracy: domain.accuracy ?? null,
+    metadata: (domain.metadata ?? {}) as Json,
+  }
+}
+
+export class TrackingService {
 
   static async getRoutePointsByTripId(tripId: string) {
     const supabase = await createClient()
@@ -53,7 +57,7 @@ export class TrackingService {
 
     if (error) throw error
 
-    return data.map(this.transformToDomain)
+    return data.map(routePointRowToDomain)
   }
 
   /**
@@ -81,7 +85,7 @@ export class TrackingService {
 
     if (error) throw error
 
-    return data.map(this.transformToDomain)
+    return data.map(routePointRowToDomain)
   }
 
   static async createRoutePoint(point: {
@@ -99,7 +103,7 @@ export class TrackingService {
       throw new Error('User not authenticated')
     }
 
-    const insertData = this.transformToInsert(point)
+    const insertData = routePointToDatabase(point)
 
     const { data, error } = await supabase
       .from('route_points')
@@ -109,7 +113,7 @@ export class TrackingService {
 
     if (error) throw error
 
-    return this.transformToDomain(data)
+    return routePointRowToDomain(data)
   }
 
   static async deleteRoutePointsByTripId(tripId: string) {
