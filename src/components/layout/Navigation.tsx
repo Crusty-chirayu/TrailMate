@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { Mountain, LogOut, User, Menu, X } from 'lucide-react'
 import { useState } from 'react'
+import { Button } from '@/components/ui/Button'
 
 export default function Navigation() {
   const { user, loading } = useAuth()
@@ -43,13 +44,10 @@ export default function Navigation() {
                     <User className="h-4 w-4" />
                     <span>{user.email}</span>
                   </div>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center space-x-1 text-sm text-foreground hover:text-destructive transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Logout</span>
-                  </button>
+                  <Button variant="ghost" size="sm" onClick={handleLogout}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
                 </div>
               </>
             ) : (
@@ -57,11 +55,8 @@ export default function Navigation() {
                 <Link href="/login" className="text-sm text-foreground hover:text-primary transition-colors">
                   Login
                 </Link>
-                <Link
-                  href="/signup"
-                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                >
-                  Sign Up
+                <Link href="/signup">
+                  <Button>Sign Up</Button>
                 </Link>
               </>
             )}
@@ -102,13 +97,10 @@ export default function Navigation() {
                     <User className="h-4 w-4" />
                     <span>{user.email}</span>
                   </div>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center space-x-1 text-sm text-destructive hover:text-destructive/80 transition-colors"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Logout</span>
-                  </button>
+                  <Button variant="ghost" size="sm" onClick={handleLogout}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
                 </div>
               </>
             ) : (
@@ -120,12 +112,8 @@ export default function Navigation() {
                 >
                   Login
                 </Link>
-                <Link
-                  href="/signup"
-                  className="block text-sm text-primary hover:text-primary/80 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Sign Up
+                <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="ghost" size="sm">Sign Up</Button>
                 </Link>
               </>
             )}
