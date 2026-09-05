@@ -423,6 +423,11 @@
 - RLS at database boundary
 - Progressive enhancement for offline scenarios
 
+### Commit Standards
+- All commits must contain normal professional Git commit messages
+- No external agent attribution or branding
+- Repository maintained by Chirayu
+
 ---
 
 **Last Updated:** 2026-09-05
