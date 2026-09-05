@@ -1,0 +1,311 @@
+import { createClient } from '@/lib/supabase/server'
+import type { GearTemplate, GearTemplateInsert, GearItem, GearItemInsert } from '@/types/database'
+import type { GearTemplate as DomainGearTemplate, GearItem as DomainGearItem, PackingProgress, GearCategory } from '@/types/domain'
+
+export class GearService {
+  private static transformTemplateToDomain(dbTemplate: GearTemplate): DomainGearTemplate {
+    return {
+      id: dbTemplate.id,
+      userId: dbTemplate.user_id,
+      name: dbTemplate.name,
+      description: dbTemplate.description || undefined,
+      category: dbTemplate.category || undefined,
+      createdAt: new Date(dbTemplate.created_at),
+      updatedAt: new Date(dbTemplate.updated_at),
+    }
+  }
+
+  private static transformTemplateToInsert(domain: {
+    name: string
+    description?: string
+    category?: string
+  }, userId: string): GearTemplateInsert {
+    return {
+      user_id: userId,
+      name: domain.name,
+      description: domain.description || null,
+      category: domain.category || null,
+    }
+  }
+
+  private static transformItemToDomain(dbItem: GearItem): DomainGearItem {
+    return {
+      id: dbItem.id,
+      templateId: dbItem.template_id,
+      itemName: dbItem.item_name,
+      category: dbItem.category as GearCategory | undefined,
+      checked: dbItem.checked,
+      quantity: dbItem.quantity,
+      weight: dbItem.weight || undefined,
+      notes: dbItem.notes || undefined,
+      sortOrder: dbItem.sort_order,
+      createdAt: new Date(dbItem.created_at),
+    }
+  }
+
+  private static transformItemToInsert(domain: {
+    templateId: string
+    itemName: string
+    category?: GearCategory
+    quantity?: number
+    weight?: number
+    notes?: string
+    sortOrder?: number
+  }): GearItemInsert {
+    return {
+      template_id: domain.templateId,
+      item_name: domain.itemName,
+      category: domain.category || null,
+      quantity: domain.quantity || 1,
+      weight: domain.weight || null,
+      notes: domain.notes || null,
+      sort_order: domain.sortOrder || 0,
+    }
+  }
+
+  // Template methods
+  static async getAllGearTemplates() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    const { data, error } = await supabase
+      .from('gear_templates')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    return data.map(this.transformTemplateToDomain)
+  }
+
+  static async getGearTemplateById(id: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    const { data, error } = await supabase
+      .from('gear_templates')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (error) throw error
+
+    return this.transformTemplateToDomain(data)
+  }
+
+  static async createGearTemplate(template: {
+    name: string
+    description?: string
+    category?: string
+  }) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    const insertData: GearTemplateInsert = this.transformTemplateToInsert(template, user.id)
+
+    const { data, error } = await supabase
+      .from('gear_templates')
+      .insert(insertData)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return this.transformTemplateToDomain(data)
+  }
+
+  static async updateGearTemplate(id: string, updates: {
+    name?: string
+    description?: string
+    category?: string
+  }) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    const updateData: Partial<GearTemplateInsert> = {
+      name: updates.name,
+      description: updates.description || null,
+      category: updates.category || null,
+    }
+
+    const { data, error } = await supabase
+      .from('gear_templates')
+      .update(updateData)
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return this.transformTemplateToDomain(data)
+  }
+
+  static async deleteGearTemplate(id: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    const { error } = await supabase
+      .from('gear_templates')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) throw error
+
+    return true
+  }
+
+  // Item methods
+  static async getGearItemsByTemplateId(templateId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    const { data, error } = await supabase
+      .from('gear_items')
+      .select('*')
+      .eq('template_id', templateId)
+      .order('sort_order', { ascending: true })
+
+    if (error) throw error
+
+    return data.map(this.transformItemToDomain)
+  }
+
+  static async createGearItem(item: {
+    templateId: string
+    itemName: string
+    category?: GearCategory
+    quantity?: number
+    weight?: number
+    notes?: string
+    sortOrder?: number
+  }) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    const insertData = this.transformItemToInsert(item)
+
+    const { data, error } = await supabase
+      .from('gear_items')
+      .insert(insertData)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return this.transformItemToDomain(data)
+  }
+
+  static async updateGearItem(id: string, updates: {
+    itemName?: string
+    category?: GearCategory
+    checked?: boolean
+    quantity?: number
+    weight?: number
+    notes?: string
+    sortOrder?: number
+  }) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    const updateData: Partial<GearItemInsert> = {
+      item_name: updates.itemName,
+      category: updates.category || null,
+      checked: updates.checked,
+      quantity: updates.quantity,
+      weight: updates.weight || null,
+      notes: updates.notes || null,
+      sort_order: updates.sortOrder,
+    }
+
+    const { data, error } = await supabase
+      .from('gear_items')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return this.transformItemToDomain(data)
+  }
+
+  static async deleteGearItem(id: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    const { error } = await supabase
+      .from('gear_items')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+
+    return true
+  }
+
+  static async calculatePackingProgress(templateId: string): Promise<PackingProgress> {
+    const items = await this.getGearItemsByTemplateId(templateId)
+
+    const totalItems = items.length
+    const checkedItems = items.filter(item => item.checked).length
+    const percentage = totalItems > 0 ? (checkedItems / totalItems) * 100 : 0
+
+    const totalWeight = items.reduce((sum, item) => {
+      return sum + (item.weight || 0) * item.quantity
+    }, 0)
+
+    const packedWeight = items
+      .filter(item => item.checked)
+      .reduce((sum, item) => {
+        return sum + (item.weight || 0) * item.quantity
+      }, 0)
+
+    return {
+      totalItems,
+      checkedItems,
+      percentage: Math.round(percentage),
+      totalWeight,
+      packedWeight,
+    }
+  }
+}
