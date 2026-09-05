@@ -824,9 +824,9 @@ service-role exposure.
 
 **Date:** 2026-09-06
 
-**Implementation commit:** `462c2bc7cd493768ea62de450c64faaf89d650cc` — `feat: harden database security and schema constraints`
+**Implementation commit:** `d523c6952d9e72e62a4fa377d93b86528ab98701` — `feat: harden database security and schema constraints`
 
-**Checkpoint:** pushed to `origin/arena/01a07374-trailmate` and opened as PR #2
+**Remote checkpoint:** merged through PR #2; `origin/main` reached `9280d0a76af369f2cc8dbac09754d5f96c98b988`
 
 ### Findings remediated
 
@@ -887,7 +887,7 @@ service-role exposure.
   hosted checks for RLS flags, policy roles/commands, anonymous privileges,
   constraint validation state, and the packing uniqueness index.
 
-### Validation at `462c2bc`
+### Validation at `d523c69`
 
 - `npm run lint` — 0 errors, 14 pre-existing warnings
 - `npx tsc --noEmit` — pass
@@ -916,4 +916,4 @@ Phase 12B work has started.
 
 **Last Updated:** 2026-09-06
 **Current Phase:** Phase 12A - Security and Schema Correctness (Complete)
-**Latest Implementation Commit:** 462c2bc7cd493768ea62de450c64faaf89d650cc
+**Latest Implementation Commit:** d523c6952d9e72e62a4fa377d93b86528ab98701
