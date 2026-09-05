@@ -61,12 +61,16 @@ export class TripAnalyticsService {
    * Loads the authenticated user's full analytics input set: every trip,
    * enriched with recorded route statistics as TripActivityRecords.
    *
+   * Callers that already hold the user's trip list (e.g. a page that also
+   * renders recent trips) should pass it via `trips` to avoid a duplicate
+   * database round-trip.
+   *
    * Isolation: the server client carries the user's own session; RLS on
    * both `trips` and `route_points` (via trip ownership) is the database-
    * level guarantee, with explicit user_id filters as the service layer.
    * A user can never receive another user's trips or route points.
    */
-  static async getTripActivityRecords(): Promise<TripActivityRecord[]> {
+  static async getTripActivityRecords(trips?: Trip[]): Promise<TripActivityRecord[]> {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -74,10 +78,10 @@ export class TripAnalyticsService {
       throw new Error('User not authenticated')
     }
 
-    const trips = await TripService.getAllTrips()
-    if (trips.length === 0) return []
+    const tripList = trips ?? (await TripService.getAllTrips())
+    if (tripList.length === 0) return []
 
-    const points = await TrackingService.getRoutePointsForTrips(trips.map(t => t.id))
-    return buildActivityRecords(trips, groupRoutePointsByTrip(points))
+    const points = await TrackingService.getRoutePointsForTrips(tripList.map(t => t.id))
+    return buildActivityRecords(tripList, groupRoutePointsByTrip(points))
   }
 }

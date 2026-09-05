@@ -36,8 +36,10 @@ export default function ActivityBreakdown({ summaries }: { summaries: ActivitySu
             </th>
             <td className="py-2.5 px-2 text-right tabular-nums">
               {s.tripCount}
+              {/* Recorded-count nuance hides on narrow screens to keep the
+                  four columns from wrapping (sm+ shows it). */}
               {s.tripsWithRoute < s.tripCount && (
-                <span className="text-muted-foreground"> · {s.tripsWithRoute} recorded</span>
+                <span className="hidden text-muted-foreground sm:inline"> · {s.tripsWithRoute} recorded</span>
               )}
             </td>
             <td className="py-2.5 px-2 text-right tabular-nums">{formatDistance(s.totalDistance)}</td>

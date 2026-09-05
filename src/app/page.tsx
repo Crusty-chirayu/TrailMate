@@ -22,7 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import WindowSelector from '@/components/analytics/WindowSelector'
-import type { ActivityType, TripStatus } from '@/types/domain'
+import type { ActivityType, Trip, TripStatus } from '@/types/domain'
 import { Mountain, MapPin, Calendar, Plus, Backpack, Footprints, Route, Timer, TrendingUp, CheckCheck } from 'lucide-react'
 import Link from 'next/link'
 import { formatDistance, formatElevation, formatTime } from '@/lib/tracking/format'
@@ -56,19 +56,40 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ w
 
   const { window: windowParam } = await searchParams
   const window = parseWindowParam(windowParam)
+  // Label derives from the *parsed* window so unknown or malformed params
+  // (e.g. ?window=999) consistently fall back to the 30-day label.
+  const windowLabel = WINDOW_LABELS[window === 'all' ? 'all' : String(window.days)]
   const referenceDate = new Date() // explicit anchor: this server render
 
   let records: TripActivityRecord[] = []
   let analytics: TripAnalytics = emptyTripAnalytics()
   let trips: TripSummaryRow[] = []
+  let allTrips: Trip[] = []
   let analyticsAvailable = false
 
   let allTime = emptyTripAnalytics()
   let trendBuckets: TrendBucket[] = []
   let activitySummaries: ActivitySummary[] = []
 
+  // One database round-trip serves both the field log and recent
+  // adventures: the trip list is fetched once here and handed to the
+  // analytics service instead of re-queried inside it.
   try {
-    records = await TripAnalyticsService.getTripActivityRecords()
+    allTrips = await TripService.getAllTrips()
+    trips = allTrips.slice(0, 3).map(t => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      activityType: t.activityType,
+      plannedDate: t.plannedDate,
+    }))
+  } catch (error) {
+    if (error instanceof Error && error.message === 'User not authenticated') redirect('/login')
+    console.error('Failed to load recent trips:', error)
+  }
+
+  try {
+    records = await TripAnalyticsService.getTripActivityRecords(allTrips)
     analytics = computeTripAnalytics(records, { window, referenceDate })
     // All-time is computed once per render: it feeds the personal records
     // (records are lifetime achievements, not windowed).
@@ -82,23 +103,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ w
   }
 
   const trendGranularity = resolveTrendGranularity(window, records, referenceDate)
-  const windowLabel = WINDOW_LABELS[windowParam ?? '30']
   const recordEntries = buildRecordEntries(allTime, records)
-
-  // Recent adventures (unchanged behavior: falls back gracefully).
-  try {
-    const allTrips = await TripService.getAllTrips()
-    trips = allTrips.slice(0, 3).map(t => ({
-      id: t.id,
-      title: t.title,
-      status: t.status,
-      activityType: t.activityType,
-      plannedDate: t.plannedDate,
-    }))
-  } catch (error) {
-    if (error instanceof Error && error.message === 'User not authenticated') redirect('/login')
-    console.error('Failed to load recent trips:', error)
-  }
 
   const hasAnyData = analytics.totalTrips > 0
 
