@@ -1,4 +1,4 @@
-# TrailMate Reconstruction Ledger
+﻿# TrailMate Reconstruction Ledger
 
 **Project:** TrailMate Outdoor Trip Planning & GPS Tracking
 **Repository:** https://github.com/Crusty-chirayu/TrailMate.git
@@ -649,8 +649,10 @@ Phase 7 map stack and design language.
 - GPX export is client-side; no server-side export history or email delivery.
 - No offline tile cache for the map (unchanged from Phase 9).
 
+| ElevationProfileChart was found corrupted (literal 	est) and restored in fix commit 62b59cd.
+
 ---
 
 **Last Updated:** 2026-09-05
 **Current Phase:** Phase 10 - Elevation Profile & GPX Export (Complete)
-**Latest Commit:** 9c09c04
+**Latest Commit:** 62b59cd
