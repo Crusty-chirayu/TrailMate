@@ -403,6 +403,8 @@ export interface ActivitySummary {
   tripsWithRoute: number
   totalDistance: number
   totalElevationGain: number
+  /** True when at least one trip of this type recorded altitude. */
+  hasElevation: boolean
 }
 
 /**
@@ -424,6 +426,7 @@ export function summarizeByActivity(
         tripsWithRoute: 0,
         totalDistance: 0,
         totalElevationGain: 0,
+        hasElevation: false,
       }
       byType.set(r.activityType, summary)
     }
@@ -432,6 +435,7 @@ export function summarizeByActivity(
       summary.tripsWithRoute++
       summary.totalDistance += r.route.distance
       summary.totalElevationGain += r.route.elevationGain
+      if (r.route.maxElevation !== null) summary.hasElevation = true
     }
   }
   return ACTIVITY_TYPE_ORDER.filter(type => byType.has(type)).map(type => byType.get(type)!)
@@ -521,6 +525,20 @@ function bucketLabel(b: Date, granularity: TrendGranularity): string {
   }
 }
 
+/**
+ * The bucket size a trend series will use for these records — exported so
+ * callers (charts, labels) agree with `buildTrendSeries` on the resolution.
+ */
+export function resolveTrendGranularity(
+  window: AnalyticsWindow,
+  records: readonly TripActivityRecord[],
+  referenceDate: Date,
+  granularity?: TrendGranularity,
+): TrendGranularity {
+  if (granularity) return granularity
+  return defaultGranularity(window, records, referenceDate)
+}
+
 function defaultGranularity(
   window: AnalyticsWindow,
   records: readonly TripActivityRecord[],
@@ -564,7 +582,7 @@ export function buildTrendSeries(
   if (!isValidDate(referenceDate)) {
     throw new RangeError('analytics referenceDate must be a valid Date')
   }
-  const granularity = options.granularity ?? defaultGranularity(window, records, referenceDate)
+  const granularity = resolveTrendGranularity(window, records, referenceDate, options.granularity)
   const bounds = resolveWindow(window, referenceDate)
 
   // Window lower bound in epoch ms (−∞ for 'all' — but 'all' needs real data
