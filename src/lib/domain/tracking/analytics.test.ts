@@ -418,9 +418,9 @@ describe('30-day boundary', () => {
 
 describe('activity grouping', () => {
   const records: TripActivityRecord[] = [
-    rec({ tripId: 't1', activityType: 'trekking', route: route({ distance: 1000, elevationGain: 100 }) }),
-    rec({ tripId: 't2', activityType: 'trekking', route: route({ distance: 500, elevationGain: 50 }) }),
-    rec({ tripId: 'c1', activityType: 'cycling', route: route({ distance: 3000, elevationGain: 200 }) }),
+    rec({ tripId: 't1', activityType: 'trekking', route: route({ distance: 1000, elevationGain: 100, maxElevation: 500 }) }),
+    rec({ tripId: 't2', activityType: 'trekking', route: route({ distance: 500, elevationGain: 50, maxElevation: 400 }) }),
+    rec({ tripId: 'c1', activityType: 'cycling', route: route({ distance: 3000, elevationGain: 200, maxElevation: 300 }) }),
     rec({ tripId: 'k1', activityType: 'camping', status: 'planned' }),
     rec({ tripId: 'o1', activityType: 'other', date: new Date('2025-01-01T00:00:00.000Z') }),
   ]
@@ -435,11 +435,20 @@ describe('activity grouping', () => {
   it('sums per-type trip counts, route counts, distance and ascent', () => {
     const summary = summarizeByActivity(records, { referenceDate: REF })
     expect(summary).toEqual([
-      { activityType: 'trekking', tripCount: 2, tripsWithRoute: 2, totalDistance: 1500, totalElevationGain: 150 },
-      { activityType: 'cycling', tripCount: 1, tripsWithRoute: 1, totalDistance: 3000, totalElevationGain: 200 },
-      { activityType: 'camping', tripCount: 1, tripsWithRoute: 0, totalDistance: 0, totalElevationGain: 0 },
-      { activityType: 'other', tripCount: 1, tripsWithRoute: 0, totalDistance: 0, totalElevationGain: 0 },
+      { activityType: 'trekking', tripCount: 2, tripsWithRoute: 2, totalDistance: 1500, totalElevationGain: 150, hasElevation: true },
+      { activityType: 'cycling', tripCount: 1, tripsWithRoute: 1, totalDistance: 3000, totalElevationGain: 200, hasElevation: true },
+      { activityType: 'camping', tripCount: 1, tripsWithRoute: 0, totalDistance: 0, totalElevationGain: 0, hasElevation: false },
+      { activityType: 'other', tripCount: 1, tripsWithRoute: 0, totalDistance: 0, totalElevationGain: 0, hasElevation: false },
     ])
+  })
+
+  it('reports hasElevation only when altitude was actually recorded for the type', () => {
+    const summary = summarizeByActivity(
+      [rec({ tripId: 'x', activityType: 'cycling', route: route({ distance: 900 }) })],
+      { referenceDate: REF },
+    )
+    expect(summary[0].hasElevation).toBe(false)
+    expect(summary[0].totalElevationGain).toBe(0)
   })
 
   it('honors windows (dropped types disappear entirely)', () => {

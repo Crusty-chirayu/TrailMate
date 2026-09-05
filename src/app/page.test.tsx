@@ -107,6 +107,10 @@ describe('dashboard (server render)', () => {
     expect(html).toContain('Plan Your First Trip')
     expect(html).toContain('New Trip')
     expect(html).toContain('No trips yet')
+    // No analysis sections for a user without trips (no empty clutter)
+    expect(html).not.toContain('Personal records')
+    expect(html).not.toContain('By activity')
+    expect(html).not.toContain('Distance ·')
   })
 
   it('renders windowed metrics and context from real analytics values', async () => {
@@ -130,6 +134,24 @@ describe('dashboard (server render)', () => {
     expect(html).toContain('Alpine Loop')
     // Recent adventures
     expect(html).toContain('Recent Adventures')
+
+    // Trend (11E): all-time window with one recent record → day buckets
+    expect(html).toContain('Distance · all time')
+    expect(html).toContain('Distance per day for all time')
+    expect(html).toContain('recorded in 1 of 2 days')
+
+    // Activity breakdown (11D) — only the activity types actually present
+    expect(html).toContain('By activity · all time')
+    expect(html).toContain('Trekking')
+    expect(html).not.toContain('Cycling')
+
+    // Personal records (11F) — all-time, linked to the source trip
+    expect(html).toContain('Personal records · all time')
+    expect(html).toContain('Longest distance')
+    expect(html).toContain('Largest ascent')
+    expect(html).toContain('Highest elevation')
+    expect(html).toContain('Longest moving time')
+    expect(html).toContain('href="/trips/t1"')
   })
 
   it('renders the no-altitude honesty state (em dash, not a fabricated zero)', async () => {
@@ -145,6 +167,11 @@ describe('dashboard (server render)', () => {
     }))
     const html = await renderPage({ searchParams: Promise.resolve({ window: 'all' }) })
     expect(html).toContain('no altitude data')
+    // Records: only the ones backed by real data appear (flat, no-altitude
+    // route has no ascent or elevation record).
+    expect(html).toContain('Longest distance')
+    expect(html).not.toContain('Largest ascent')
+    expect(html).not.toContain('Highest elevation')
   })
 
   it('redirects to login when the session is missing', async () => {

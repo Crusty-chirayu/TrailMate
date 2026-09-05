@@ -4,12 +4,20 @@ import { Suspense } from 'react'
 import { TripService } from '@/lib/domain/trips/service'
 import { TripAnalyticsService } from '@/lib/domain/tracking/analyticsService'
 import {
+  buildTrendSeries,
   computeTripAnalytics,
   emptyTripAnalytics,
+  resolveTrendGranularity,
+  summarizeByActivity,
+  type ActivitySummary,
   type AnalyticsWindow,
   type TripActivityRecord,
   type TripAnalytics,
+  type TrendBucket,
 } from '@/lib/domain/tracking/analytics'
+import ActivityBreakdown from '@/components/analytics/ActivityBreakdown'
+import DistanceTrendChart from '@/components/analytics/DistanceTrendChart'
+import PersonalRecords, { type PersonalRecordEntry } from '@/components/analytics/PersonalRecords'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -55,14 +63,27 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ w
   let trips: TripSummaryRow[] = []
   let analyticsAvailable = false
 
+  let allTime = emptyTripAnalytics()
+  let trendBuckets: TrendBucket[] = []
+  let activitySummaries: ActivitySummary[] = []
+
   try {
     records = await TripAnalyticsService.getTripActivityRecords()
     analytics = computeTripAnalytics(records, { window, referenceDate })
+    // All-time is computed once per render: it feeds the personal records
+    // (records are lifetime achievements, not windowed).
+    allTime = computeTripAnalytics(records, { window: 'all', referenceDate })
+    trendBuckets = buildTrendSeries(records, { window, referenceDate })
+    activitySummaries = summarizeByActivity(records, { window, referenceDate })
     analyticsAvailable = true
   } catch (error) {
     if (error instanceof Error && error.message === 'User not authenticated') redirect('/login')
     console.error('Failed to load trip analytics:', error)
   }
+
+  const trendGranularity = resolveTrendGranularity(window, records, referenceDate)
+  const windowLabel = WINDOW_LABELS[windowParam ?? '30']
+  const recordEntries = buildRecordEntries(allTime, records)
 
   // Recent adventures (unchanged behavior: falls back gracefully).
   try {
@@ -99,7 +120,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ w
           <section aria-labelledby="field-log-heading" className="mb-8">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h2 id="field-log-heading" className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Field log · {WINDOW_LABELS[windowParam ?? '30']}
+                Field log · {windowLabel}
               </h2>
               <Suspense fallback={null}>
                 <WindowSelector />
@@ -165,6 +186,50 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ w
               </p>
             )}
           </section>
+        )}
+
+        {/* Trend + breakdown + records — only when the user has trips */}
+        {analyticsAvailable && hasAnyData && (
+          <>
+            {/* Distance trend for the selected window (11E) */}
+            <section aria-labelledby="trend-heading" className="mb-8">
+              <h2 id="trend-heading" className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+                Distance · {windowLabel}
+              </h2>
+              {analytics.totalDistance > 0 ? (
+                <DistanceTrendChart buckets={trendBuckets} granularity={trendGranularity} windowLabel={windowLabel} />
+              ) : (
+                <p className="text-sm text-muted-foreground border border-dashed border-border rounded-md p-4">
+                  No recorded distance in this period yet.
+                </p>
+              )}
+            </section>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              {/* Activity breakdown for the selected window (11D) */}
+              <section aria-labelledby="activity-heading">
+                <h2 id="activity-heading" className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+                  By activity · {windowLabel}
+                </h2>
+                <ActivityBreakdown summaries={activitySummaries} />
+              </section>
+
+              {/* Personal records — all-time (11F) */}
+              <section aria-labelledby="records-heading">
+                <h2 id="records-heading" className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+                  Personal records · all time
+                </h2>
+                {recordEntries.length > 0 ? (
+                  <PersonalRecords entries={recordEntries} />
+                ) : (
+                  <p className="text-sm text-muted-foreground border border-dashed border-border rounded-md p-4">
+                    No records yet — complete a trip with a recorded route to
+                    set your first personal record.
+                  </p>
+                )}
+              </section>
+            </div>
+          </>
         )}
 
         {/* Quick Actions */}
@@ -333,6 +398,45 @@ function StatusLine({ analytics }: { analytics: TripAnalytics }) {
 function activeTripId(records: TripActivityRecord[]): string {
   const active = records.find(r => r.status === 'active')
   return active?.tripId ?? ''
+}
+
+/**
+ * All-time personal records → display entries, each linked to its source
+ * trip. Records without qualifying real data (null) are omitted entirely —
+ * no invalid or incomplete entries.
+ */
+function buildRecordEntries(allTime: TripAnalytics, records: TripActivityRecord[]): PersonalRecordEntry[] {
+  const dateByTrip = new Map(records.map(r => [r.tripId, r.date]))
+  const entries: PersonalRecordEntry[] = []
+  const push = (
+    key: PersonalRecordEntry['key'],
+    label: string,
+    value: string,
+    ref: { tripId: string; title: string } | null,
+  ) => {
+    if (!ref) return
+    entries.push({
+      key,
+      label,
+      value,
+      tripId: ref.tripId,
+      tripTitle: ref.title,
+      date: dateByTrip.get(ref.tripId) ?? null,
+    })
+  }
+  if (allTime.longestTrip) {
+    push('longest-trip', 'Longest distance', formatDistance(allTime.longestTrip.distance), allTime.longestTrip)
+  }
+  if (allTime.largestAscent) {
+    push('largest-ascent', 'Largest ascent', `+${formatElevation(allTime.largestAscent.elevationGain)}`, allTime.largestAscent)
+  }
+  if (allTime.highestElevation) {
+    push('highest-elevation', 'Highest elevation', formatElevation(allTime.highestElevation.elevation), allTime.highestElevation)
+  }
+  if (allTime.longestMovingTime) {
+    push('longest-moving-time', 'Longest moving time', formatTime(allTime.longestMovingTime.movingSeconds), allTime.longestMovingTime)
+  }
+  return entries
 }
 
 function EmptyExpeditionLog() {
