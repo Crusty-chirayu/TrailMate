@@ -1,48 +1,66 @@
 import { redirect } from 'next/navigation'
 import { TripService } from '@/lib/domain/trips/service'
+import { validateTripInput } from '@/lib/domain/trips/validation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { ArrowLeft, MapPin, Calendar, Mountain } from 'lucide-react'
+import { ArrowLeft, MapPin } from 'lucide-react'
 import type { ActivityType } from '@/types/domain'
 
 export default function NewTripPage() {
   async function createTrip(formData: FormData) {
     'use server'
 
-    const title = formData.get('title') as string
-    const activityType = formData.get('activityType') as ActivityType
-    const description = formData.get('description') as string
-    const plannedDate = formData.get('plannedDate') as string
-    const estimatedDistance = formData.get('estimatedDistance') as string
+    const title = String(formData.get('title') ?? '').trim()
+    const activityType = String(formData.get('activityType') ?? '').trim() as ActivityType
+    const description = String(formData.get('description') ?? '')
+    const plannedDate = String(formData.get('plannedDate') ?? '')
+    const estimatedDistance = String(formData.get('estimatedDistance') ?? '')
 
-    if (!title || !activityType) {
-      throw new Error('Title and activity type are required')
-    }
-
-    try {
-      const tripData: {
-        title: string
-        activityType: ActivityType
-        description?: string
-        plannedDate?: Date
-        estimatedDistance?: number
-      } = {
+    const validation = validateTripInput(
+      {
         title,
         activityType,
-      }
-
-      if (description) tripData.description = description
-      if (plannedDate) tripData.plannedDate = new Date(plannedDate)
-      if (estimatedDistance) tripData.estimatedDistance = parseFloat(estimatedDistance) * 1000
-
-      await TripService.createTrip(tripData)
-
-      redirect('/trips')
-    } catch (error) {
-      console.error('Failed to create trip:', error)
-      throw new Error('Failed to create trip')
+        description: description || null,
+        plannedDate: plannedDate || null,
+        estimatedDistance: estimatedDistance || null,
+      },
+      { isUpdate: false },
+    )
+    if (!validation.valid) {
+      throw new Error(validation.errors.join('; '))
     }
+
+    let planned: Date | undefined
+    if (plannedDate) {
+      planned = new Date(plannedDate)
+      if (isNaN(planned.getTime())) throw new Error('Planned date is invalid')
+    }
+
+    let distance: number | undefined
+    if (estimatedDistance) {
+      const km = parseFloat(estimatedDistance)
+      if (!Number.isFinite(km) || km < 0) throw new Error('Estimated distance must be a non-negative number')
+      distance = km * 1000
+    }
+
+    // Creation errors are not redirect errors, so redirect is outside the catch
+    try {
+      await TripService.createTrip({
+        title,
+        activityType,
+        description: description || undefined,
+        plannedDate: planned,
+        estimatedDistance: distance,
+      })
+    } catch (error) {
+      // Re-throw redirect so Next.js can handle it; do not swallow
+      if (error instanceof Error && (error as unknown as { digest?: string }).digest?.startsWith('NEXT_REDIRECT')) throw error
+      console.error('Failed to create trip:', error)
+      throw new Error(error instanceof Error ? error.message : 'Failed to create trip')
+    }
+
+    redirect('/trips')
   }
 
   return (
@@ -93,14 +111,17 @@ export default function NewTripPage() {
                   name="activityType"
                   className="w-full px-4 py-2 rounded-md border border-input bg-background text-sm"
                   required
+                  aria-describedby="activityType-help"
                 >
                   <option value="">Select activity type</option>
                   <option value="trekking">Trekking</option>
                   <option value="cycling">Cycling</option>
                   <option value="camping">Camping</option>
-                  <option value="hiking">Hiking</option>
                   <option value="other">Other</option>
                 </select>
+                <p id="activityType-help" className="text-xs text-muted-foreground">
+                  Choose from the supported activity types.
+                </p>
               </div>
 
               {/* Description */}

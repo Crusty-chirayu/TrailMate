@@ -1,26 +1,25 @@
-import { redirect } from 'next/navigation'
 import { TripService } from '@/lib/domain/trips/service'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Mountain, MapPin, Calendar, Plus, Filter } from 'lucide-react'
-import Link from 'next/link'
-import type { TripStatus, ActivityType } from '@/types/domain'
+import { Mountain, MapPin, Calendar, Plus } from 'lucide-react'
+
+export const dynamic = 'force-dynamic'
 
 export default async function TripsPage({
   searchParams,
 }: {
-  searchParams: { status?: string, activity?: string, search?: string }
+  searchParams: Promise<{ status?: string; activity?: string; search?: string }>
 }) {
-  const { status, activity, search } = searchParams
+  const { status, activity, search } = await searchParams
   const trips = await TripService.getAllTrips()
 
-  // Filter trips based on search params
+  // Server-validated filtering — only known enum values participate
   const filteredTrips = trips.filter(trip => {
-    if (status && trip.status !== status) return false
-    if (activity && trip.activityType !== activity) return false
-    if (search && !trip.title.toLowerCase().includes(search.toLowerCase())) return false
+    if (status && ['planned', 'active', 'completed', 'cancelled'].includes(status) && trip.status !== status) return false
+    if (activity && ['trekking', 'cycling', 'camping', 'other'].includes(activity) && trip.activityType !== activity) return false
+    if (search && !trip.title.toLowerCase().includes(search.toLowerCase().trim())) return false
     return true
   })
 
@@ -83,21 +82,29 @@ export default async function TripsPage({
           </Card>
         </div>
 
-        {/* Filters */}
+        {/* Filters — URL-driven, refresh-safe, shareable */}
         <Card className="mb-6">
           <CardContent className="pt-6">
-            <div className="flex flex-col md:flex-row gap-4">
+            <form method="get" className="flex flex-col md:flex-row gap-4" role="search" aria-label="Filter trips">
               <div className="flex-1">
+                <label htmlFor="search" className="sr-only">Search trips</label>
                 <Input
+                  id="search"
+                  name="search"
                   placeholder="Search trips..."
-                  defaultValue={search}
+                  defaultValue={search ?? ''}
                   className="max-w-sm"
+                  aria-label="Search trips"
                 />
               </div>
               <div className="flex gap-2">
+                <label htmlFor="status" className="sr-only">Filter by status</label>
                 <select
+                  id="status"
+                  name="status"
                   className="px-4 py-2 rounded-md border border-input bg-background text-sm"
-                  defaultValue={status}
+                  defaultValue={status ?? ''}
+                  aria-label="Filter by status"
                 >
                   <option value="">All Status</option>
                   <option value="planned">Planned</option>
@@ -105,9 +112,13 @@ export default async function TripsPage({
                   <option value="completed">Completed</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
+                <label htmlFor="activity" className="sr-only">Filter by activity</label>
                 <select
+                  id="activity"
+                  name="activity"
                   className="px-4 py-2 rounded-md border border-input bg-background text-sm"
-                  defaultValue={activity}
+                  defaultValue={activity ?? ''}
+                  aria-label="Filter by activity"
                 >
                   <option value="">All Activities</option>
                   <option value="trekking">Trekking</option>
@@ -115,8 +126,12 @@ export default async function TripsPage({
                   <option value="camping">Camping</option>
                   <option value="other">Other</option>
                 </select>
+                <Button type="submit" variant="outline" size="sm" aria-label="Apply filters">Filter</Button>
+                {(search || status || activity) && (
+                  <Button href="/trips" variant="ghost" size="sm" aria-label="Clear filters">Clear</Button>
+                )}
               </div>
-            </div>
+            </form>
           </CardContent>
         </Card>
 

@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+import { redirect, notFound } from 'next/navigation'
 import { TripService } from '@/lib/domain/trips/service'
 import { TripPackingService } from '@/lib/domain/gear/tripPacking'
 import { formatWeight } from '@/lib/domain/gear/progress'
@@ -6,47 +6,73 @@ import { Progress } from '@/components/ui/Progress'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { ArrowLeft, MapPin, Calendar, Mountain, Clock, Activity, Edit, Trash2, Play } from 'lucide-react'
-import type { Trip, TripStatus } from '@/types/domain'
+import DeleteTripButton from '@/components/trips/DeleteTripButton'
+import { ArrowLeft, MapPin, Calendar, Mountain, Clock, Activity, Edit, Play } from 'lucide-react'
+import type { Trip } from '@/types/domain'
+
+export const dynamic = 'force-dynamic'
 
 export default async function TripDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
+  const { id } = await params
   let trip: Trip | null = null
 
   try {
-    trip = await TripService.getTripById(params.id)
+    trip = await TripService.getTripById(id)
   } catch (error) {
+    // Ownership or auth failure: treat missing as notFound for correct semantics
+    const message = error instanceof Error ? error.message : ''
+    if (message.includes('not found') || message.includes('No rows') || message.includes('PGRST116')) {
+      notFound()
+    }
     console.error('Failed to fetch trip:', error)
-    redirect('/trips')
+    // If user is not authenticated, redirect to login (fail-closed)
+    if (message === 'User not authenticated') redirect('/login')
+    throw error
   }
 
   if (!trip) {
+    notFound()
+  }
+
+  async function deleteTripWithForm(formData: FormData) {
+    'use server'
+    const tripId = String(formData.get('tripId') ?? id)
+    try {
+      await TripService.deleteTrip(tripId)
+    } catch (error) {
+      if (error instanceof Error && (error as unknown as { digest?: string }).digest?.startsWith('NEXT_REDIRECT')) throw error
+      console.error('Failed to delete trip:', error)
+      throw new Error(error instanceof Error ? error.message : 'Failed to delete trip')
+    }
     redirect('/trips')
   }
 
-  async function deleteTrip() {
+  async function startTripAction() {
     'use server'
     try {
-      await TripService.deleteTrip(params.id)
-      redirect('/trips')
+      await TripService.startTrip(id)
     } catch (error) {
-      console.error('Failed to delete trip:', error)
-      throw new Error('Failed to delete trip')
+      if (error instanceof Error && (error as unknown as { digest?: string }).digest?.startsWith('NEXT_REDIRECT')) throw error
+      console.error('Failed to start trip:', error)
+      throw new Error(error instanceof Error ? error.message : 'Failed to start trip')
     }
+    redirect(`/trips/${id}`)
   }
 
   async function completeTrip() {
     'use server'
     try {
-      await TripService.updateTrip(params.id, { status: 'completed' as const })
-      redirect(`/trips/${params.id}`)
+      await TripService.completeTrip(id)
     } catch (error) {
+      if (error instanceof Error && (error as unknown as { digest?: string }).digest?.startsWith('NEXT_REDIRECT')) throw error
       console.error('Failed to complete trip:', error)
-      throw new Error('Failed to complete trip')
+      throw new Error(error instanceof Error ? error.message : 'Failed to complete trip')
     }
+    redirect(`/trips/${id}`)
   }
 
   const statusColors = {
@@ -79,26 +105,30 @@ export default async function TripDetailPage({
             </div>
             <div className="flex gap-2">
               {trip.status === 'planned' && (
-                <Button href={`/trips/${params.id}/track`}>
+                <form action={startTripAction}>
+                  <Button type="submit" aria-label={`Start trip ${trip.title}`}>
+                    <Play className="h-4 w-4 mr-2" />
+                    Start Trip
+                  </Button>
+                </form>
+              )}
+              {trip.status === 'planned' && (
+                <Button href={`/trips/${id}/track`} variant="outline" aria-label={`Open GPS tracker for ${trip.title}`}>
                   <Play className="h-4 w-4 mr-2" />
-                  Start Tracking
+                  Tracker
                 </Button>
               )}
               {trip.status === 'active' && (
                 <form action={completeTrip}>
-                  <Button type="submit" variant="outline">
+                  <Button type="submit" variant="outline" aria-label={`Complete trip ${trip.title}`}>
                     Complete Trip
                   </Button>
                 </form>
               )}
-              <Button variant="outline" size="icon">
+              <Button href={`/trips/${id}/edit`} variant="outline" size="icon" aria-label={`Edit trip ${trip.title}`}>
                 <Edit className="h-4 w-4" />
               </Button>
-              <form action={deleteTrip}>
-                <Button type="submit" variant="destructive" size="icon">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </form>
+              <DeleteTripButton tripId={id} tripTitle={trip.title} onDelete={deleteTripWithForm} />
             </div>
           </div>
         </div>

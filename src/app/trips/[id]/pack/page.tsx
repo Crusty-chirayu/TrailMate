@@ -15,42 +15,45 @@ import {
   addAdHocItemAction,
 } from './actions'
 
-export default async function TripPackingPage({ params }: { params: { id: string } }) {
+export const dynamic = 'force-dynamic'
+
+export default async function TripPackingPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   let tripTitle: string
   let items: Awaited<ReturnType<typeof TripPackingService.getPackingItems>>
   let templates: Awaited<ReturnType<typeof GearService.getAllGearTemplates>>
   try {
-    const trip = await TripService.getTripById(params.id)
+    const trip = await TripService.getTripById(id)
     tripTitle = trip.title
     ;[items, templates] = await Promise.all([
-      TripPackingService.getPackingItems(params.id),
+      TripPackingService.getPackingItems(id),
       GearService.getAllGearTemplates(),
     ])
   } catch (error) {
     if (error instanceof Error && error.message === 'User not authenticated') redirect('/login')
     console.error('Failed to load packing page:', error)
-    redirect(`/trips/${params.id}`)
+    redirect(`/trips/${id}`)
   }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="container mx-auto px-4 py-6 max-w-2xl">
-        <Button href={`/trips/${params.id}`} variant="ghost" className="mb-4">
+        <Button href={`/trips/${id}`} variant="ghost" className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           {tripTitle}
         </Button>
         <h1 className="text-2xl font-bold mb-6">Packing Checklist</h1>
 
         <PackingChecklist
-          tripId={params.id}
+          tripId={id}
           initialItems={items}
           onToggle={togglePackedAction}
           onRemove={removePackingItemAction}
         />
 
         <div className="mt-8 space-y-6">
-          <AssignTemplate tripId={params.id} templates={templates} />
-          <AddAdHocItem tripId={params.id} />
+          <AssignTemplate tripId={id} templates={templates} />
+          <AddAdHocItem tripId={id} />
         </div>
       </div>
     </main>
