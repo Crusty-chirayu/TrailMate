@@ -114,12 +114,15 @@ function ElevationProfileChart({
         onPointerMove={handlePointerMove}
         onPointerLeave={handlePointerLeave}
       >
-        <rect x={margin.left} y={margin.top} width={plotW} height={plotH} fill="var(--chart-bg, #f8fafc)" rx={4} />
+        {/* The profile panel is a fixed light "paper map" surface inside
+            the app theme; it uses explicit colors, not theme tokens, which
+            are HSL triplets and invalid as bare SVG color values. */}
+        <rect x={margin.left} y={margin.top} width={plotW} height={plotH} fill="#f8fafc" rx={4} />
         {gridlines.map((g, i) => (
-          <line key={`grid-${i}`} x1={g[0].x} y1={g[0].y} x2={g[1].x} y2={g[1].y} stroke="var(--border, #e2e8f0)" strokeWidth={1} />
+          <line key={`grid-${i}`} x1={g[0].x} y1={g[0].y} x2={g[1].x} y2={g[1].y} stroke="#e2e8f0" strokeWidth={1} />
         ))}
-        <path d={areaPath} fill="var(--chart-area, rgba(100, 150, 255, 0.18))" />
-        <path d={linePath} fill="none" stroke="var(--chart-line, #4a94ff)" strokeWidth={2} />
+        <path d={areaPath} fill="rgba(100, 150, 255, 0.18)" />
+        <path d={linePath} fill="none" stroke="#4a94ff" strokeWidth={2} />
 
         {points.length > 0 && (
           <>
@@ -134,10 +137,10 @@ function ElevationProfileChart({
               const maxPt = points[maxP]
               return (
                 <>
-                  <circle cx={minPt.x} cy={minPt.y} r={3.5} fill="var(--chart-low, #94a3b8)" />
-                  <text x={minPt.x} y={minPt.y - 8} fontSize={10} textAnchor="middle" fill="var(--muted-foreground, #94a3b8)">low</text>
-                  <circle cx={maxPt.x} cy={maxPt.y} r={3.5} fill="var(--chart-high, #22c55e)" />
-                  <text x={maxPt.x} y={maxPt.y - 8} fontSize={10} textAnchor="middle" fill="var(--muted-foreground, #94a3b8)">high</text>
+                  <circle cx={minPt.x} cy={minPt.y} r={3.5} fill="#94a3b8" />
+                  <text x={minPt.x} y={minPt.y - 8} fontSize={10} textAnchor="middle" fill="#475569">low</text>
+                  <circle cx={maxPt.x} cy={maxPt.y} r={3.5} fill="#22c55e" />
+                  <text x={maxPt.x} y={maxPt.y - 8} fontSize={10} textAnchor="middle" fill="#475569">high</text>
                 </>
               )
             })()}
@@ -145,8 +148,8 @@ function ElevationProfileChart({
         )}
         {points.length > 0 && (
           <>
-            <circle cx={points[0].x} cy={points[0].y} r={5} fill="var(--chart-start, #22c55e)" stroke="white" strokeWidth={1.5} />
-            <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r={5} fill="var(--chart-end, #f97316)" stroke="white" strokeWidth={1.5} />
+            <circle cx={points[0].x} cy={points[0].y} r={5} fill="#22c55e" stroke="white" strokeWidth={1.5} />
+            <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r={5} fill="#f97316" stroke="white" strokeWidth={1.5} />
           </>
         )}
 
@@ -157,11 +160,11 @@ function ElevationProfileChart({
               y1={margin.top + y(hover.altitude)}
               x2={margin.left + plotW}
               y2={margin.top + y(hover.altitude)}
-              stroke="var(--border, #cbd5e1)"
+              stroke="#cbd5e1"
               strokeWidth={1}
               strokeDasharray="3 3"
             />
-            <circle cx={margin.left + x(hover)} cy={margin.top + y(hover.altitude)} r={4} fill="var(--foreground, #0f172a)" />
+            <circle cx={margin.left + x(hover)} cy={margin.top + y(hover.altitude)} r={4} fill="#0f172a" />
             <foreignObject x={margin.left + x(hover) + 8} y={margin.top + y(hover.altitude) - 28} width={140} height={48}>
               <div className="bg-popover border border-border rounded px-2 py-1 text-xs shadow-lg">
                 <div className="font-medium">{formatElevation(hover.altitude)}</div>

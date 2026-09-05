@@ -37,9 +37,10 @@ vi.mock('@/lib/supabase/server', () => ({
 
 const mockRecords: unknown[] = []
 const mockTrips: unknown[] = []
+const mockGetRecords = vi.fn()
 vi.mock('@/lib/domain/tracking/analyticsService', () => ({
   TripAnalyticsService: {
-    getTripActivityRecords: async () => mockRecords,
+    getTripActivityRecords: (trips?: unknown[]) => mockGetRecords(trips),
   },
 }))
 vi.mock('@/lib/domain/trips/service', () => ({
@@ -96,6 +97,8 @@ describe('dashboard (server render)', () => {
   beforeEach(() => {
     mockGetUser.mockReset()
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'qa@example.com' } } })
+    mockGetRecords.mockReset()
+    mockGetRecords.mockImplementation(async () => mockRecords)
     mockRecords.length = 0
     mockTrips.length = 0
   })
@@ -152,6 +155,24 @@ describe('dashboard (server render)', () => {
     expect(html).toContain('Highest elevation')
     expect(html).toContain('Longest moving time')
     expect(html).toContain('href="/trips/t1"')
+
+    // One trips round-trip serves both the field log and recent adventures:
+    // the page passes its fetched list to the analytics service.
+    expect(mockGetRecords).toHaveBeenCalledTimes(1)
+    expect(mockGetRecords).toHaveBeenCalledWith(mockTrips)
+  })
+
+  it('treats an unknown window param as the 30-day default', async () => {
+    mockRecords.push(record({}))
+    mockTrips.push(trip({ plannedDate: new Date() }))
+
+    const html = await renderPage({ searchParams: Promise.resolve({ window: '999' }) })
+
+    // Label and section headings follow the parsed (default) window, not
+    // the raw malformed param.
+    expect(html).toContain('Field log · last 30 days')
+    expect(html).toContain('Distance · last 30 days')
+    expect(html).toContain('By activity · last 30 days')
   })
 
   it('renders the no-altitude honesty state (em dash, not a fabricated zero)', async () => {
