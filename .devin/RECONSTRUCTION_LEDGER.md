@@ -3,7 +3,7 @@
 **Project:** TrailMate Outdoor Trip Planning & GPS Tracking
 **Repository:** https://github.com/Crusty-chirayu/TrailMate.git
 **Started:** 2026-09-05
-**Status:** Phase 11 in progress (11A complete)
+**Status:** Phase 11 complete (11A–11H)
 
 ---
 
@@ -739,11 +739,87 @@ deterministic and no longer depend on a third-party CDN.
 - No cross-trip average speed metric (per-trip speed remains on the route
   page); aggregates stay honest (time and distance totals instead).
 
-**Next milestone:** 11B — Historical Aggregation (server-side data access
-for analytics, bulk route-point fetch, no per-trip N+1).
+### 11B: Historical aggregation (server-side) — `2ab9fb9`
+`src/lib/domain/tracking/analyticsService.ts` adds the server-only data
+path. `TripAnalyticsService.getTripActivityRecords()`:
+- Resolves the authenticated user via the server client (no service-role
+  key anywhere; the browser keeps only the anon key).
+- Loads every trip through the existing `TripService` (RLS-scoped) and all
+  route points in ONE bulk query via `.in('trip_id', ids)` — no per-trip
+  N+1, and raw points never reach the browser.
+- Groups points by trip and maps them through the 11A domain functions
+  (`computeRouteStats` + `calculateStatistics`) into `TripActivityRecord`.
+- No schema, RLS or index changes; per-user isolation is guaranteed by RLS
+  (ownership) plus explicit `user_id` filters.
+
+Pure, unit-tested helpers are extracted: `groupRoutePointsByTrip`,
+`buildActivityRecords` (tested in `analyticsService.test.ts`).
+
+### 11C: Dashboard field log — `021cdbd`
+- `src/app/page.tsx` becomes the "Expedition Log": primary metrics are
+  Total distance, Completed trips, Elevation gained, Moving time — all
+  computed from recorded routes only; an em dash plus "no altitude data"
+  is shown when no route has altitude (never a fabricated zero).
+- `WindowSelector` (7/30/90/365 days / all time) is a set of plain links
+  driven by the `?window=` search param — no client-side state, fully
+  keyboard accessible, works without JavaScript interactivity.
+- Historical-context line: status counts, average recorded trip, longest
+  trip with a link — only clauses backed by real data are rendered.
+- Honest empty state for users without trips.
+- SSR tests (`page.test.tsx`) use React 19 `renderToReadableStream`
+  (the page is an async server component; the legacy synchronous API
+  cannot represent it).
+
+### 11D + 11E + 11F: Breakdown, trend, personal records — `7616c8e`
+- Activity breakdown (`ActivityBreakdown`): dense table, only activity
+  types that actually have trips; per-row recorded count; ascent "—"
+  unless the activity has real altitude data.
+- Distance trend (`DistanceTrendChart`): dependency-free SVG bar chart
+  (no chart library added). Buckets come from the domain
+  `buildTrendSeries` — contiguous, zero-filled, day/week/month
+  resolution chosen by window; accessible `role="img"` spoken summary
+  plus a full screen-reader data table. Honest empty state when the
+  window has no recorded distance.
+- Personal records (`PersonalRecords`): all-time, never windowed —
+  longest distance, largest ascent, highest elevation, longest moving
+  time — each linked to its source trip. Records without qualifying real
+  data are omitted entirely. Imported GPX routes are treated exactly
+  like live tracking (same stored route points, no special-casing;
+  documented in the service).
+- Page tests extended to 6 SSR smoke tests: windowed values,
+  no-altitude honesty, record omission, record links, empty user.
+
+### 11G + 11H: Refinement and QA — `123ecfc`
+- Performance: the dashboard fetches the user's trips ONCE and passes the
+  list into `TripAnalyticsService` (new optional parameter) instead of
+  issuing a second identical query for recent adventures; all analytics
+  math runs server-side per render (O(trips + points), no per-render
+  client work, no big chart node counts — fixed-size SVG).
+- Robustness: malformed `?window=` values now fall back to the 30-day
+  label consistently (label derives from the parsed window).
+- Accessibility/robustness fix in the Phase 10
+  `ElevationProfileChart`: theme tokens (HSL triplets) were used as bare
+  SVG colors — invalid values that silently rendered black. The panel is
+  a fixed light "paper map" surface and now uses explicit colors with
+  stable contrast (low/high labels at slate-600). Audit confirms no raw
+  theme-token color usages remain in TS/TSX; chart data is always
+  duplicated in a screen-reader table.
+- Mobile: analysis grid stacks below `lg`; the activity table hides the
+  recorded-count nuance below `sm` to keep four columns without wrapping.
+
+## QA gate at `123ecfc`
+- `npx tsc --noEmit` — 0 errors
+- `npx vitest run` — 15 files, 180/180 tests passing
+- `npm run lint` — 0 errors (16 pre-existing warnings, unchanged set)
+- `npm run build` — clean
+- Secrets scan on changed files — clean
+
+**Phase 11 status:** complete (11A–11H). All analytics values derive from
+recorded route data; no fabricated metrics, no chart-wall UI, no
+service-role exposure.
 
 ---
 
 **Last Updated:** 2026-09-05
-**Current Phase:** Phase 11 - Trip Analytics (11A Complete, 11B Next)
-**Latest Commit:** 4f698b0
+**Current Phase:** Phase 11 - Trip Analytics (11A–11H Complete)
+**Latest Commit:** 123ecfc
