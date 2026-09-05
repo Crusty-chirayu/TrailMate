@@ -496,6 +496,79 @@
 
 ---
 
+## PHASE 8 — GEAR SYSTEM (COMPLETE)
+
+**Commit:** `16bf2e6` — feat: implement gear management system
+**Remote:** origin/main = `16bf2e6`
+
+### Architecture
+
+**Data model decision — SNAPSHOT on assignment.**
+When a gear template is assigned to a trip, item data is COPIED into
+`trip_packing_items` (a new table). The source `template_id` / `source_item_id`
+are stored as nullable provenance references (`ON DELETE SET NULL`), never as
+live foreign-key dependencies for reads. Consequences:
+- Later template edits can never corrupt a trip's historical packing state
+- Deleting a template never destroys trip packing lists
+- Re-assigning the same template is idempotent per `source_item_id` (dupes skipped)
+
+### Schema changes (`supabase/migrations/0002_gear_system.sql`, mirrored in schema.sql)
+- `gear_items.required BOOLEAN` + `gear_items.updated_at` + trigger
+- New `trip_packing_items`: trip_id (CASCADE), provenance refs (SET NULL),
+  item_name, category, quantity (CHECK >= 1), weight (grams/unit), notes,
+  required, packed, packed_at, sort_order, timestamps
+- Indexes on trip_id / category / packed
+- Full RLS via trip ownership (SELECT/INSERT/UPDATE+WITH CHECK/DELETE)
+- Safe/idempotent for existing databases; preserves all data
+
+### Domain layer (`src/lib/domain/gear/`)
+- `progress.ts` — pure, deterministic: `computePackingProgress` (required vs
+  optional split, quantity-weighted weight, percentage), `groupByCategory`
+  (stable display order), `totalWeightOf`, `formatWeight` (never invents mass),
+  `allRequiredPacked`, `remainingRequiredItems`, `isGearCategory`
+- `validation.ts` — shared client+server rules: name lengths, quantity 1..999,
+  weight 0..1,000,000 g, category guard, notes length; normalizers
+  (`normalizeCategory/Quantity/Weight` — missing weight stays undefined)
+- `tripPacking.ts` — `TripPackingService`: getPackingItems, assignTemplateToTrip
+  (snapshot copy, idempotent), addPackingItem, setPacked, removePackingItem,
+  clearPackingList, updatePackingItem, getPackingProgress, getProgressSummary
+- `service.ts` — GearService extended with `required`, snapshot-friendly updates
+
+### UI
+- `/gear` — template list (existed, updated for new fields)
+- `/gear/[id]` — template detail: add/delete items, required flag, quantity,
+  weight, category select, delete template
+- `/trips/[id]/pack` — flagship packing checklist: category groups (collapsible),
+  sticky progress header, one-tap 56px-min pack/unpack with `useOptimistic` +
+  rollback-on-failure, Req/Opt distinction, assign-template card, ad-hoc item form
+- `/trips/[id]` — Gear card with live progress + "Continue packing" deep link
+
+### Critical implementation notes
+- Server actions MUST `revalidatePath` after toggle/remove: `useOptimistic`
+  state is discarded when the transition completes, so without revalidation
+  packed state visually reverts. Implemented and commented.
+- Auth: every service call re-verifies `auth.getUser()`; RLS enforces trip
+  ownership as the second layer. Cross-user access impossible via normal flows.
+
+### Validation
+- `npm run lint` — 0 errors (17 pre-existing warnings)
+- `npx tsc --noEmit` — pass
+- `npx vitest run` — 87 tests / 9 files pass (27 new gear domain tests)
+- `npm run build` — pass; routes: /gear, /gear/[id], /trips/[id]/pack
+- Secrets scan — clean
+
+### Known limitations
+- Offline packing state changes are NOT queued; packing requires connectivity.
+  Phase 7's IndexedDB sync infra could be extended, but Gear did not reuse it
+  to avoid pretending offline safety that doesn't exist yet.
+- Item reordering UI not exposed (sort_order supported in data/service).
+- CRUD service tests require a live Supabase instance; domain logic (progress,
+  validation, grouping, weight) is fully unit-tested instead.
+
+**Next milestone:** Phase 9 — route visualization history / trip statistics views (owner's call).
+
+---
+
 **Last Updated:** 2026-09-05
-**Current Phase:** Phase 8 - Gear System (Next)
-**Latest Commit:** 0f81698
+**Current Phase:** Phase 8 - Gear System (Complete)
+**Latest Commit:** 16bf2e6
