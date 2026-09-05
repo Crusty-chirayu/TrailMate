@@ -56,6 +56,34 @@ export class TrackingService {
     return data.map(this.transformToDomain)
   }
 
+  /**
+   * Bulk-fetches route points for many trips in ONE query (used by the
+   * analytics aggregation — never an N+1 per trip). Rows come back ordered
+   * by trip_id then recorded_at, so per-trip groups stay chronological.
+   * RLS (trip ownership) applies to every returned row.
+   */
+  static async getRoutePointsForTrips(tripIds: string[]) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+
+    if (tripIds.length === 0) return []
+
+    const { data, error } = await supabase
+      .from('route_points')
+      .select('*')
+      .in('trip_id', tripIds)
+      .order('trip_id', { ascending: true })
+      .order('recorded_at', { ascending: true })
+
+    if (error) throw error
+
+    return data.map(this.transformToDomain)
+  }
+
   static async createRoutePoint(point: {
     tripId: string
     lat: number
