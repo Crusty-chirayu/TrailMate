@@ -83,7 +83,7 @@
 | **Project** | TrailMate |
 | **Tagline** | Outdoor Trip Planning & GPS Trail Tracking Web Platform |
 | **Use Cases** | 🥾 Trekking · 🚶 Hiking · 🚴 Mountain Biking / Cycling · ⛺ Camping & Backpacking |
-| **Core Value** | Plan trips, log GPS waypoints (lat/lng/elevation/timestamp), manage gear packing lists, sync with Supabase Postgres — or run fully offline in Local Scaffolding Mode |
+| **Core Value** | Plan trips, log GPS waypoints (lat/lng/elevation/timestamp), manage gear packing lists, review real expedition analytics (windowed totals, distance trend, personal records) — sync with Supabase Postgres, or run fully offline in Local Scaffolding Mode |
 
 ---
 
@@ -152,7 +152,7 @@ trailmate/
     ├── middleware.ts              # Root middleware invoking updateSession
     ├── app/
     │   ├── layout.tsx             # App Shell wrapper with sticky top Navigation & Footer
-    │   ├── page.tsx               # Dashboard (Metrics cards, recent trips, quick actions)
+    │   ├── page.tsx               # Expedition Log dashboard (windowed analytics, distance trend, activity breakdown, personal records)
     │   ├── globals.css            # Global Tailwind directives & dark mode variables
     │   ├── login/page.tsx         # Supabase Auth Log In page (Suspense boundary wrapped)
     │   ├── signup/page.tsx        # Supabase Auth Sign Up page
@@ -273,10 +273,13 @@ auth.users
 - `updateSession` middleware refreshes `@supabase/ssr` cookies on every server request.
 - 300ms cookie flush delay on login to avoid redirect race conditions.
 
-### 2. 📊 Dashboard (`/`)
-- Summary cards: Total Trips, Active Tracking sessions, Planned Adventures, Gear Templates.
-- Recent Outdoor Activities feed with activity tags and live status badges.
-- Quick-action shortcuts to create a trip or manage gear.
+### 2. 📊 Expedition Log Dashboard (`/`)
+- Primary metrics computed only from recorded routes: Total distance, Completed trips, Elevation gained, Moving time — with an honest "no altitude data" state instead of invented zeros.
+- Time-window comparison (7 / 30 / 90 days, last year, all time) driven by the `?window=` search param — plain links, no client-side state.
+- Distance trend: dependency-free SVG bar chart (day/week/month buckets, zero-filled) with a screen-reader summary and a full data table.
+- Activity breakdown: trips, distance and ascent per activity for the window — only activity types that actually exist.
+- Personal records: all-time longest distance, largest ascent, highest elevation and longest moving time, each linked to its source trip.
+- Recent Adventures feed and quick-action shortcuts (new trip, continue tracking, gear).
 
 ### 3. 🗺️ Trips Manager (`/trips`, `/trips/new`)
 - Filter by Status (Planned / Active / Completed / Cancelled) and Activity Type (Trekking / Cycling / Camping / Other).
@@ -289,6 +292,9 @@ auth.users
 - Synthetic fallback GPS generator when location permission is denied.
 - Manual waypoint entry (lat / lng / elevation).
 - Route Points table: Waypoint #, Lat, Lng, Elevation, Timestamp, Sync state.
+- Live tracking map and route history map (dependency-free SVG — no map SDK or tile server).
+- Elevation profile chart: altitude vs. distance with start/end and min/max markers plus a hover readout.
+- GPX export of the recorded route; GPX import stored as the trip's recorded route points (so imports feed the same analytics pipeline as live tracking).
 
 ### 5. 🎒 Gear & Checklist Manager (`/gear`)
 - Create/delete gear templates (e.g. "3-Season Backpacking", "Day Cycling").
@@ -377,15 +383,20 @@ No code changes are required to switch between modes — it's detected automatic
 
 ## Roadmap
 
-Future extension points for the next milestone:
+Recently shipped:
 
-- ⬜ **Interactive Map Visualizer** — integrate Leaflet / `react-leaflet` or Mapbox GL on `/trips/[id]` to draw polylines between recorded `route_points`.
-- ⬜ **GPX / KML Export & Import** — export waypoints to `.gpx` for Garmin/Strava compatibility; import `.gpx` to pre-populate planned routes.
-- ⬜ **Elevation Profile Chart** — use `recharts` to plot elevation vs. distance/timestamp.
+- ✅ **Route maps** — live tracking map and route history map as dependency-free SVG (no map SDK, no tile server).
+- ✅ **GPX Export & Import** — export the recorded route as `.gpx`; import a `.gpx` as the trip's recorded route points.
+- ✅ **Elevation Profile Chart** — dependency-free SVG plot of altitude vs. distance with start/end and min/max markers.
+- ✅ **Expedition Log Analytics** — windowed totals and averages, activity breakdown, distance trend, and all-time personal records, every value computed from recorded route data (no estimation, no fabricated metrics).
+
+Remaining before the v1.0 tag:
+
+- ⬜ **KML import** — extend the GPX pipeline to KML files.
 - ⬜ **Offline PWA Support** — add Service Workers via `@ducanh2912/next-pwa` so GPS tracking keeps working without cellular coverage.
 - ⬜ **Trip Sharing & Public Trails** — add an `is_public` boolean to `trips` to enable shareable public trail URLs.
 
-These are the remaining pieces before a full v1.0 tag — deployment and completion are actively planned once the maintainer's schedule frees back up.
+Deployment and completion are actively planned once the maintainer's schedule frees back up.
 
 ---
 
