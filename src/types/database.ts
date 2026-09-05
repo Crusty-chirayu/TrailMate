@@ -66,6 +66,7 @@ export interface Database {
           visibility?: 'private' | 'shared' | 'public'
           updated_at?: string
         }
+        Relationships: []
       }
       route_points: {
         Row: {
@@ -77,6 +78,7 @@ export interface Database {
           accuracy: number | null
           recorded_at: string
           synced: boolean
+          source_id: string | null
           metadata: Json
         }
         Insert: {
@@ -88,6 +90,7 @@ export interface Database {
           accuracy?: number | null
           recorded_at?: string
           synced?: boolean
+          source_id?: string | null
           metadata?: Json
         }
         Update: {
@@ -99,8 +102,18 @@ export interface Database {
           accuracy?: number | null
           recorded_at?: string
           synced?: boolean
+          source_id?: string | null
           metadata?: Json
         }
+        Relationships: [
+          {
+            foreignKeyName: 'route_points_trip_id_fkey'
+            columns: ['trip_id']
+            isOneToOne: false
+            referencedRelation: 'trips'
+            referencedColumns: ['id']
+          },
+        ]
       }
       gear_templates: {
         Row: {
@@ -129,6 +142,7 @@ export interface Database {
           category?: string | null
           updated_at?: string
         }
+        Relationships: []
       }
       gear_items: {
         Row: {
@@ -172,6 +186,15 @@ export interface Database {
           sort_order?: number
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: 'gear_items_template_id_fkey'
+            columns: ['template_id']
+            isOneToOne: false
+            referencedRelation: 'gear_templates'
+            referencedColumns: ['id']
+          },
+        ]
       }
       trip_packing_items: {
         Row: {
@@ -224,6 +247,29 @@ export interface Database {
           sort_order?: number
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: 'trip_packing_items_trip_id_fkey'
+            columns: ['trip_id']
+            isOneToOne: false
+            referencedRelation: 'trips'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'trip_packing_items_template_id_fkey'
+            columns: ['template_id']
+            isOneToOne: false
+            referencedRelation: 'gear_templates'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'trip_packing_items_source_item_id_fkey'
+            columns: ['source_item_id']
+            isOneToOne: false
+            referencedRelation: 'gear_items'
+            referencedColumns: ['id']
+          },
+        ]
       }
     }
     Views: {

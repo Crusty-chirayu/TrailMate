@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/Input'
 import { ArrowLeft, Plus, Package } from 'lucide-react'
 import { validateTemplateInput } from '@/lib/domain/gear/validation'
 
+// This authenticated page reads request cookies and must never be prerendered.
+export const dynamic = 'force-dynamic'
+
 export default async function GearPage() {
   let templates: Awaited<ReturnType<typeof GearService.getAllGearTemplates>> = []
   let loadError: string | null = null
