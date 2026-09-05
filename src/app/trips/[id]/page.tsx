@@ -35,17 +35,6 @@ export default async function TripDetailPage({
     }
   }
 
-  async function startTracking() {
-    'use server'
-    try {
-      await TripService.updateTrip(params.id, { status: 'active' as const })
-      redirect(`/trips/${params.id}`)
-    } catch (error) {
-      console.error('Failed to start tracking:', error)
-      throw new Error('Failed to start tracking')
-    }
-  }
-
   async function completeTrip() {
     'use server'
     try {
@@ -87,12 +76,10 @@ export default async function TripDetailPage({
             </div>
             <div className="flex gap-2">
               {trip.status === 'planned' && (
-                <form action={startTracking}>
-                  <Button type="submit">
-                    <Play className="h-4 w-4 mr-2" />
-                    Start Tracking
-                  </Button>
-                </form>
+                <Button href={`/trips/${params.id}/track`}>
+                  <Play className="h-4 w-4 mr-2" />
+                  Start Tracking
+                </Button>
               )}
               {trip.status === 'active' && (
                 <form action={completeTrip}>
@@ -199,8 +186,8 @@ export default async function TripDetailPage({
                 <div className="text-sm text-muted-foreground">
                   GPS tracking is active for this trip
                 </div>
-                <Button variant="outline" size="sm">
-                  View Map
+                <Button href={`/trips/${trip.id}/track`} variant="outline" size="sm">
+                  Open GPS Tracker
                 </Button>
               </div>
             </CardContent>

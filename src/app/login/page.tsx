@@ -28,8 +28,8 @@ export default function LoginPage() {
 
       router.push('/')
       router.refresh()
-    } catch (error: any) {
-      setError(error.message)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Sign-in failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -90,7 +90,7 @@ export default function LoginPage() {
         </form>
 
         <div className="text-center text-sm text-muted-foreground">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/signup" className="text-primary hover:underline">
             Sign up
           </Link>

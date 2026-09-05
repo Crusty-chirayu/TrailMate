@@ -40,12 +40,15 @@ CREATE TABLE route_points (
   accuracy DOUBLE PRECISION,
   recorded_at TIMESTAMPTZ DEFAULT now(),
   synced BOOLEAN DEFAULT true,
+  -- Stable client-generated id used for idempotent synchronization (upsert on conflict).
+  source_id TEXT,
   metadata JSONB DEFAULT '{}'::jsonb
 );
 
 -- Indexes for route points
 CREATE INDEX idx_route_points_trip_id ON route_points(trip_id);
 CREATE INDEX idx_route_points_recorded_at ON route_points(recorded_at);
+CREATE UNIQUE INDEX idx_route_points_source_id ON route_points(source_id) WHERE source_id IS NOT NULL;
 
 -- Gear templates table
 CREATE TABLE gear_templates (

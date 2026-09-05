@@ -29,8 +29,8 @@ export default function SignupPage() {
       if (error) throw error
 
       setMessage('Check your email for the confirmation link!')
-    } catch (error: any) {
-      setError(error.message)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Sign-up failed. Please try again.')
     } finally {
       setLoading(false)
     }

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import type { Json } from '@/types/database'
 import type { RoutePoint, RoutePointInsert } from '@/types/database'
 import type { RoutePoint as DomainRoutePoint, RouteStats } from '@/types/domain'
 
@@ -31,7 +32,7 @@ export class TrackingService {
       lng: domain.lng,
       elevation: domain.elevation || null,
       accuracy: domain.accuracy || null,
-      metadata: (domain.metadata || {}) as any,
+      metadata: (domain.metadata || {}) as Json,
     }
   }
 
