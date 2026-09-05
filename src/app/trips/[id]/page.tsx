@@ -197,6 +197,21 @@ export default async function TripDetailPage({
           </Card>
         )}
 
+        {/* Route History Card */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Route History</CardTitle>
+            <CardDescription>
+              Recorded GPS track and statistics for this trip
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button href={`/trips/${trip.id}/route`} variant="outline" size="sm">
+              View recorded route
+            </Button>
+          </CardContent>
+        </Card>
+
         {/* Gear Card */}
         <GearCard tripId={trip.id} />
       </div>

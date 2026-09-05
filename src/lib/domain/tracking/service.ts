@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Json } from '@/types/database'
 import type { RoutePoint, RoutePointInsert } from '@/types/database'
 import type { RoutePoint as DomainRoutePoint, RouteStats } from '@/types/domain'
+import { computeRouteStats } from './routeStats'
 
 export class TrackingService {
   private static transformToDomain(dbPoint: RoutePoint): DomainRoutePoint {
@@ -102,73 +103,26 @@ export class TrackingService {
   }
 
   static calculateRouteStats(points: DomainRoutePoint[]): RouteStats {
-    if (points.length === 0) {
-      return {
-        totalDistance: 0,
-        totalElevationGain: 0,
-        totalElevationLoss: 0,
-        maxElevation: 0,
-        minElevation: 0,
-        duration: 0,
-        pointCount: 0,
-      }
-    }
-
-    let totalDistance = 0
-    let totalElevationGain = 0
-    let totalElevationLoss = 0
-    let maxElevation = -Infinity
-    let minElevation = Infinity
-
-    for (let i = 1; i < points.length; i++) {
-      const prev = points[i - 1]
-      const curr = points[i]
-
-      // Calculate distance using Haversine formula
-      const distance = this.haversineDistance(
-        prev.lat, prev.lng,
-        curr.lat, curr.lng
-      )
-      totalDistance += distance
-
-      // Calculate elevation change
-      if (prev.elevation && curr.elevation) {
-        const elevationChange = curr.elevation - prev.elevation
-        if (elevationChange > 0) {
-          totalElevationGain += elevationChange
-        } else {
-          totalElevationLoss += Math.abs(elevationChange)
-        }
-
-        maxElevation = Math.max(maxElevation, curr.elevation)
-        minElevation = Math.min(minElevation, curr.elevation)
-      }
-    }
-
-    // Handle cases where elevation data is missing
-    if (maxElevation === -Infinity) maxElevation = 0
-    if (minElevation === Infinity) minElevation = 0
-
-    // Calculate duration
-    const duration = points.length > 1
-      ? new Date(points[points.length - 1].recordedAt).getTime() -
-        new Date(points[0].recordedAt).getTime()
-      : 0
-
-    // Calculate average speed (m/s)
-    const averageSpeed = duration > 0 ? (totalDistance / duration) * 1000 : undefined
-
+    const stats = computeRouteStats(
+      points.map(p => ({
+        lat: p.lat,
+        lng: p.lng,
+        elevation: p.elevation,
+        recordedAt: p.recordedAt,
+      })),
+    )
     return {
-      totalDistance: Math.round(totalDistance),
-      totalElevationGain: Math.round(totalElevationGain),
-      totalElevationLoss: Math.round(totalElevationLoss),
-      maxElevation: Math.round(maxElevation),
-      minElevation: Math.round(minElevation),
-      duration: Math.round(duration / 1000), // convert to seconds
-      averageSpeed,
-      pointCount: points.length,
+      totalDistance: stats.totalDistance,
+      totalElevationGain: stats.elevationGain,
+      totalElevationLoss: stats.elevationLoss,
+      maxElevation: stats.maxElevation ?? 0,
+      minElevation: stats.minElevation ?? 0,
+      duration: stats.duration,
+      averageSpeed: stats.averageSpeed ?? undefined,
+      pointCount: stats.pointCount,
     }
   }
+
 
   private static haversineDistance(
     lat1: number,
