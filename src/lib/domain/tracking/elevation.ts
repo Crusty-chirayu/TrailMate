@@ -10,6 +10,8 @@ export interface ElevationSample {
   distance: number
   /** Recorded altitude in meters. */
   altitude: number
+  /** Index into the original route array — lets a chart highlight the map position of this sample. */
+  pointIndex: number
 }
 
 export interface ElevationProfile {
@@ -58,7 +60,7 @@ export function buildElevationProfile(
   const validSamples: ElevationSample[] = []
   for (let i = 0; i < points.length; i++) {
     if (isFiniteNumber(points[i].elevation)) {
-      validSamples.push({ distance: distances[i], altitude: points[i].elevation! })
+      validSamples.push({ distance: distances[i], altitude: points[i].elevation!, pointIndex: i })
     }
   }
 

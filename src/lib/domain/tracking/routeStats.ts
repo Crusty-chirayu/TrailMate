@@ -41,6 +41,19 @@ export function emptyRouteHistoryStats(): RouteHistoryStats {
   }
 }
 
+/** Cumulative distance shared by statistics and visualization. */
+export function routeDistances(points: ReadonlyArray<RouteHistoryPoint>): number[] {
+  let distance = 0
+  return points.map((point, index) => {
+    if (index > 0) {
+      const previous = points[index - 1]
+      distance += haversineDistance(previous.lat, previous.lng, point.lat, point.lng)
+    }
+    return distance
+  })
+}
+
+
 /**
  * Computes statistics for a recorded route. Points must be in chronological
  * order; the function tolerates a single point (distance/duration 0) and an

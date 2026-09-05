@@ -111,7 +111,13 @@ export default async function TripRoutePage({ params }: { params: { id: string }
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                     Elevation Profile
                   </h2>
-                  <ElevationProfileChart samples={profile.samples} className="text-primary" />
+                                    <ElevationProfileChart
+                    samples={profile.samples}
+                    totalDistance={profile.totalDistance}
+                    gain={profile.gain}
+                    loss={profile.loss}
+                    className="text-primary"
+                  />
                   <p className="mt-2 text-xs text-muted-foreground tabular-nums">
                     Ascent {formatElevation(Math.round(profile.gain))} · Descent{' '}
                     {formatElevation(Math.round(profile.loss))} (from recorded GPS altitude)

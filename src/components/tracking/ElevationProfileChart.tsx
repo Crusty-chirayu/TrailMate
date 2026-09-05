@@ -1,114 +1,201 @@
 'use client'
 
-// Elevation profile chart: dependency-free SVG rendering of real recorded
-// altitude samples against cumulative distance. Never fabricates data —
-// the parent only renders this when a genuine altitude series exists.
+// Interactive elevation profile: dependency-free SVG area chart.
+// Consumes the domain ElevationProfile from buildElevationProfile — no
+// distance/altitude math happens in this component.
+//
+// Accessibility: role=img with an aria-label summary, plus a visually-hidden
+// <table> exposing the same samples as structured text for screen readers.
 
-import { useMemo } from 'react'
+import * as React from 'react'
+import { cn } from '@/lib/utils'
 import type { ElevationSample } from '@/lib/domain/tracking/elevation'
 import { formatElevation } from '@/lib/tracking/format'
 
-interface ElevationProfileChartProps {
+
+export interface ElevationProfileChartProps {
   samples: ElevationSample[]
+  totalDistance: number
+  gain: number
+  loss: number
   className?: string
 }
 
-export default function ElevationProfileChart({ samples, className }: ElevationProfileChartProps) {
-  const geometry = useMemo(() => {
-    const width = 640
-    const height = 180
-    const padX = 8
-    const padY = 12
+interface Point { x: number; y: number }
 
-    if (samples.length < 2) return null
+function ElevationProfileChart({
+  samples,
+  totalDistance,
+  gain,
+  loss,
+  className,
+}: ElevationProfileChartProps) {
+  const svgRef = React.useRef<SVGSVGElement>(null)
+  const [hoverIndex, setHoverIndex] = React.useState<number | null>(null)
 
-    const minDistance = samples[0].distance
-    const maxDistance = samples[samples.length - 1].distance
-    const minAltitude = Math.min(...samples.map(s => s.altitude))
-    const maxAltitude = Math.max(...samples.map(s => s.altitude))
+  const margin = { top: 16, right: 12, bottom: 28, left: 40 }
+  const width = 640
+  const height = 220
+  const plotW = width - margin.left - margin.right
+  const plotH = height - margin.top - margin.bottom
 
-    const spanDistance = Math.max(1, maxDistance - minDistance)
-    // Give flat terrain some vertical breathing room.
-    const spanAltitude = Math.max(20, maxAltitude - minAltitude)
+  const maxDistance = Math.max(totalDistance, 1)
+  const allHeights = samples.map(s => s.altitude)
+  const floor = Math.min(...allHeights)
+  const ceil = Math.max(...allHeights)
+  const span = Math.max(ceil - floor, 1) // guard flat routes
 
-    const x = (distance: number) =>
-      padX + ((distance - minDistance) / spanDistance) * (width - padX * 2)
-    const y = (altitude: number) =>
-      height - padY - ((altitude - minAltitude) / spanAltitude) * (height - padY * 2)
+  const x = (s: ElevationSample) => (s.distance / maxDistance) * plotW
+  const y = (altitude: number) => plotH - ((altitude - floor) / span) * plotH
 
-    const linePoints = samples.map(s => `${x(s.distance).toFixed(1)},${y(s.altitude).toFixed(1)}`)
-    const areaPoints = [
-      `${padX},${height - padY}`,
-      ...linePoints,
-      `${x(samples[samples.length - 1].distance).toFixed(1)},${height - padY}`,
-    ]
+  const points: Point[] = samples.map(s => ({ x: margin.left + x(s), y: margin.top + y(s.altitude) }))
 
-    return {
-      width,
-      height,
-      line: `M ${linePoints.join(' L ')}`,
-      area: `M ${areaPoints.join(' L ')} Z`,
-      minAltitude,
-      maxAltitude,
-      maxDistance,
+  // Hover crosshair: track offset within the SVG plot.
+  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current
+    if (!svg || samples.length === 0) {
+      setHoverIndex(null)
+      return
     }
-  }, [samples])
+    const rect = svg.getBoundingClientRect()
+    const offsetX = e.clientX - rect.left
+    const distanceAtCursor = (offsetX / plotW) * maxDistance
+    let best = 0
+    for (let i = 1; i < samples.length; i++) {
+      if (Math.abs(samples[i].distance - distanceAtCursor) < Math.abs(samples[best].distance - distanceAtCursor)) {
+        best = i
+      }
+    }
+    setHoverIndex(best)
+  }
 
-  if (!geometry) return null
+  const handlePointerLeave = () => setHoverIndex(null)
 
-  const summary = `Elevation profile from ${formatElevation(geometry.minAltitude)} to ${formatElevation(geometry.maxAltitude)} over ${(geometry.maxDistance / 1000).toFixed(1)} kilometers`
+  const areaPath = buildAreaPath(points, margin.left, margin.top + plotH, plotW)
+  const linePath = buildLinePath(points)
+
+  // Gridlines (5 horizontal).
+  const gridlineCount = 5
+  const gridlines: Point[][] = []
+  for (let i = 0; i <= gridlineCount; i++) {
+    const altitude = floor + (span * i) / gridlineCount
+    const gy = margin.top + y(altitude)
+    gridlines.push([{ x: margin.left, y: gy }, { x: margin.left + plotW, y: gy }])
+  }
+
+  const hover = hoverIndex !== null ? samples[hoverIndex] : null
 
   return (
-    <figure className={className}>
-      <svg
-        viewBox={`0 0 ${geometry.width} ${geometry.height}`}
-        className="w-full h-auto"
-        role="img"
-        aria-label={summary}
-        preserveAspectRatio="none"
-      >
-        {/* Baseline gridline */}
-        <line
-          x1={0}
-          y1={geometry.height - 12}
-          x2={geometry.width}
-          y2={geometry.height - 12}
-          stroke="currentColor"
-          strokeOpacity={0.15}
-        />
-        <path d={geometry.area} fill="currentColor" fillOpacity={0.12} stroke="none" />
-        <path
-          d={geometry.line}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <figcaption className="mt-2 flex items-center justify-between text-xs text-muted-foreground tabular-nums">
-        <span>{formatElevation(geometry.minAltitude)} — {formatElevation(geometry.maxAltitude)}</span>
-        <span>{(geometry.maxDistance / 1000).toFixed(1)} km</span>
-      </figcaption>
-      {/* Screen-reader table of sampled values */}
+    <div className={cn('w-full', className)}>
       <table className="sr-only">
-        <caption>{summary}</caption>
+        <caption>Elevation profile data</caption>
         <thead>
-          <tr>
-            <th scope="col">Distance (km)</th>
-            <th scope="col">Altitude (m)</th>
-          </tr>
+          <tr><th scope="col">Distance from start</th><th scope="col">Elevation</th></tr>
         </thead>
         <tbody>
           {samples.map((s, i) => (
             <tr key={i}>
-              <td>{(s.distance / 1000).toFixed(2)}</td>
-              <td>{Math.round(s.altitude)}</td>
+              <td>{formatElevation(s.distance)} m</td>
+              <td>{formatElevation(s.altitude)}</td>
             </tr>
           ))}
         </tbody>
       </table>
-    </figure>
+
+      <svg
+        ref={svgRef}
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label={`Elevation profile: ${formatElevation(gain)} ascent, ${formatElevation(loss)} descent over ${formatElevation(totalDistance)} meters`}
+        className="w-full h-auto"
+        preserveAspectRatio="xMidYMid meet"
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+      >
+        <rect x={margin.left} y={margin.top} width={plotW} height={plotH} fill="var(--chart-bg, #f8fafc)" rx={4} />
+        {gridlines.map((g, i) => (
+          <line key={`grid-${i}`} x1={g[0].x} y1={g[0].y} x2={g[1].x} y2={g[1].y} stroke="var(--border, #e2e8f0)" strokeWidth={1} />
+        ))}
+        <path d={areaPath} fill="var(--chart-area, rgba(100, 150, 255, 0.18))" />
+        <path d={linePath} fill="none" stroke="var(--chart-line, #4a94ff)" strokeWidth={2} />
+
+        {points.length > 0 && (
+          <>
+            {(() => {
+              let minP = 0
+              let maxP = 0
+              for (let i = 1; i < samples.length; i++) {
+                if (samples[i].altitude < samples[minP].altitude) minP = i
+                if (samples[i].altitude > samples[maxP].altitude) maxP = i
+              }
+              const minPt = points[minP]
+              const maxPt = points[maxP]
+              return (
+                <>
+                  <circle cx={minPt.x} cy={minPt.y} r={3.5} fill="var(--chart-low, #94a3b8)" />
+                  <text x={minPt.x} y={minPt.y - 8} fontSize={10} textAnchor="middle" fill="var(--muted-foreground, #94a3b8)">low</text>
+                  <circle cx={maxPt.x} cy={maxPt.y} r={3.5} fill="var(--chart-high, #22c55e)" />
+                  <text x={maxPt.x} y={maxPt.y - 8} fontSize={10} textAnchor="middle" fill="var(--muted-foreground, #94a3b8)">high</text>
+                </>
+              )
+            })()}
+          </>
+        )}
+        {points.length > 0 && (
+          <>
+            <circle cx={points[0].x} cy={points[0].y} r={5} fill="var(--chart-start, #22c55e)" stroke="white" strokeWidth={1.5} />
+            <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r={5} fill="var(--chart-end, #f97316)" stroke="white" strokeWidth={1.5} />
+          </>
+        )}
+
+        {hover && (
+          <>
+            <line
+              x1={margin.left}
+              y1={margin.top + y(hover.altitude)}
+              x2={margin.left + plotW}
+              y2={margin.top + y(hover.altitude)}
+              stroke="var(--border, #cbd5e1)"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+            <circle cx={margin.left + x(hover)} cy={margin.top + y(hover.altitude)} r={4} fill="var(--foreground, #0f172a)" />
+            <foreignObject x={margin.left + x(hover) + 8} y={margin.top + y(hover.altitude) - 28} width={140} height={48}>
+              <div className="bg-popover border border-border rounded px-2 py-1 text-xs shadow-lg">
+                <div className="font-medium">{formatElevation(hover.altitude)}</div>
+                <div className="text-muted-foreground">{formatElevation(hover.distance)} m from start</div>
+              </div>
+            </foreignObject>
+          </>
+        )}
+      </svg>
+      <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+        <span>Start</span>
+        <span>End — {formatElevation(totalDistance)}</span>
+      </div>
+    </div>
   )
 }
+
+function buildLinePath(points: Point[]): string {
+  if (points.length === 0) return ''
+  let d = `M ${points[0].x} ${points[0].y}`
+  for (let i = 1; i < points.length; i++) {
+    d += ` L ${points[i].x} ${points[i].y}`
+  }
+  return d
+}
+
+function buildAreaPath(points: Point[], left: number, baselineY: number, plotW: number): string {
+  if (points.length === 0) return ''
+  let d = `M ${left} ${baselineY}`
+  for (const p of points) {
+    d += ` L ${p.x} ${p.y}`
+  }
+  d += ` L ${left + plotW} ${baselineY} Z`
+  return d
+}
+
+export default ElevationProfileChart
