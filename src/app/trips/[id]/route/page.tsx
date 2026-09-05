@@ -3,7 +3,10 @@ import { TrackingService } from '@/lib/domain/tracking/service'
 import { TripService } from '@/lib/domain/trips/service'
 import { computeRouteStats } from '@/lib/domain/tracking/routeStats'
 import type { RouteHistoryPoint } from '@/lib/domain/tracking/routeStats'
+import { buildElevationProfile } from '@/lib/domain/tracking/elevation'
 import RouteHistoryMap from '@/components/tracking/RouteHistoryMap'
+import ElevationProfileChart from '@/components/tracking/ElevationProfileChart'
+import GpxExportButton from '@/components/tracking/GpxExportButton'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { ArrowLeft } from 'lucide-react'
@@ -98,6 +101,29 @@ export default async function TripRoutePage({ params }: { params: { id: string }
                 Recorded {stats.startedAt.toLocaleString()} → {stats.endedAt?.toLocaleString()}
               </p>
             )}
+
+            {/* Elevation profile — rendered only when real altitude data exists */}
+            {(() => {
+              const profile = buildElevationProfile(historyPoints)
+              if (!profile.hasElevation) return null
+              return (
+                <section aria-label="Elevation profile" className="mt-8 rounded-md border border-border p-4">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                    Elevation Profile
+                  </h2>
+                  <ElevationProfileChart samples={profile.samples} className="text-primary" />
+                  <p className="mt-2 text-xs text-muted-foreground tabular-nums">
+                    Ascent {formatElevation(Math.round(profile.gain))} · Descent{' '}
+                    {formatElevation(Math.round(profile.loss))} (from recorded GPS altitude)
+                  </p>
+                </section>
+              )
+            })()}
+
+            {/* Export */}
+            <div className="mt-6">
+              <GpxExportButton points={historyPoints} tripTitle={tripTitle} />
+            </div>
           </>
         )}
       </div>
