@@ -1042,3 +1042,40 @@ constraint. Static schema checks supplement but do not replace that gate.
 - Session sync/durability state persisted truthfully (`SET_SYNC`, `SET_PERSISTED`) with reducer tests.
 - Tests: 267 passing (25 files). Lint clean; typecheck clean.
 
+## PHASE 12C / V1 — CHECKPOINT 4: NORMALIZED GPX/KML IMPORT (Complete)
+
+**Date:** 2026-09-06
+**Merge commit (main):** `cb95ddb` — `feat: normalized GPX/KML import and KML export (#8)`
+**PR:** #8
+
+### Scope delivered
+
+- One normalized import pipeline (`routeImport.ts`) that parses GPX and KML into the canonical route representation; no imported-route special-casing anywhere downstream.
+- Static parser with a `MAX_IMPORT_POINTS` cap (50 000) so oversized files fail cleanly instead of freezing the browser.
+- Validation covers malformed XML, missing elevation, invalid timestamps, duplicate/zero-value handling, and reports import-source on every record.
+- Chunked server action (`importRouteAction`, 1000-point batches) with bulk upsert (`addRoutePoints`) that is idempotent via `source_id` and only sets `recorded_at` when the row is new.
+- Import first reconciles pending history before creating claims, so existing recorded points are never duplicated.
+- Export continues and now supports both GPX and KML (`GpxExportButton`); import/export share the normalized representation.
+- Track dashboard shows import errors and pending-completion/failed-sync banners.
+- Tests: 284 passing (27 files). Lint clean; typecheck clean; database artifact validation passes.
+
+
+## PHASE 12C / V1 — CHECKPOINT 5: SHARING + PUBLIC TRAILS (Complete)
+
+**Date:** 2026-09-06
+**Merge commit (main):** `caf5d46` — `feat: add trip sharing and public trail pages (#9)`
+**PR:** #9
+
+### Scope delivered
+
+- `visibility` (private/shared/public) remains the single source of truth; no duplicate `is_public` flag was introduced. `shared` is set/cleared through owner-only server actions.
+- `trip_shares` table with owner-limited RLS (`trips.user_id = auth.uid()`); token = stripped UUID + 32 random bytes hex, satisfies the 16–128 char token constraint.
+- Public RLS: `trips` and `route_points` readable by everyone only where `visibility = 'public'`; anon has SELECT-only grants, no anon write privileges, and no execute on the share RPCs.
+- SECURITY DEFINER `get_shared_trip`/`get_shared_route` join `trip_shares.token` with `visibility = 'shared'` and `status <> 'cancelled'`, returning safe column sets only (no `user_id`, no metadata, no gear).
+- Dedicated public trail route `/trails/[id]` with a narrow SQL projection (`visibility = 'public'` + route points) — anything else is a 404; polished shared presentation component with route stats, elevation profile, map, and GPX export.
+- Authenticated share route `/share/[token]` resolves tokens via the RPCs; unauthenticated visitors are redirected to `/login`, invalid tokens result in `notFound`.
+- Revoke = delete the `trip_shares` row; a revoked token immediately stops resolving.
+- Owner share panel in the trip detail page: enable visibility, create/copy/revoke links, and link to the public page.
+- Generated `trip_shares` types and RPC return types; operator verification script `supabase/verification/phase12c_sharing_checks.sql`.
+- Security validator now asserts sharing policies, anon privileges, and the absence of account fields in shared projections.
+- Tests: 286 passing (27 files). Lint clean (0 errors/0 warnings); typecheck clean; database artifact validation passes.
