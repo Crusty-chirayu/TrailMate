@@ -8,33 +8,43 @@ activity data.
 ## Project status
 
 Phase 11 analytics is complete. Phase 12A hardens the database, environment
-handling, route boundary, and browser security configuration.
+handling, route boundary, and browser security configuration. Phase 12B hardens
+trip reliability and journey behavior. Phase 12C delivers account-isolated
+offline storage, deterministic sync recovery, offline completion
+reconciliation, normalized GPX/KML import and export, trip sharing with public
+trail pages, and an installable offline app shell.
 
 ### Implemented
 
 - Supabase email/password authentication and cookie-backed sessions
-- Trip planning, listing, detail, deletion, and basic status handling
+- Trip planning, listing, detail, deletion, editing, and lifecycle handling
 - Foreground browser GPS recording with quality filtering
-- Durable IndexedDB route/session storage and resumable recording
+- User-scoped IndexedDB route/session storage with resumable recording
+- Deterministic sync state machine with bounded retry, queue drain, and quarantine
+- Offline trip completion reconciliation
 - RLS-protected synchronization of route points to Supabase
+- Normalized GPX/KML route import and GPX/KML export
+- Trip sharing and public trail pages
 - Live and historical Leaflet route maps
 - Route distance, duration, speed, and elevation statistics
-- Elevation profile and GPX export
+- Elevation profile and chart
 - Gear templates and snapshot-based trip packing checklists
 - Server-rendered expedition analytics, activity summaries, trends, and records
+- Installable PWA shell with offline fallback
 
 ### Not currently implemented
 
-- GPX or KML import
-- Public trail pages or trip sharing
-- Installable PWA/service worker support
 - Background GPS recording after the browser closes the page
 - Offline map tiles or offline gear/trip mutations
+- End-to-end tests and CI pipeline
+- Accessibility and performance audit
 - Production deployment verification
 
 Map tiles require network access. GPS points continue to be written locally
-while connectivity is unavailable and are eligible for later synchronization,
-but account-scoped IndexedDB isolation and retry hardening remain future work.
+while connectivity is unavailable and are eligible for later synchronization;
+account-scoped isolation, retry hardening, and completion reconciliation are
+implemented, while offline map tiles and background recording remain future
+work.
 
 ## Runtime requirements
 

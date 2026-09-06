@@ -979,8 +979,8 @@ constraint. Static schema checks supplement but do not replace that gate.
 ---
 
 **Last Updated:** 2026-09-06
-**Current Phase:** Phase 12B - Trip Reliability & Journey Hardening (Complete)
-**Latest Implementation Commit:** 85cb6a315c84d7396ec10cfeb637ddc6dcc111b2
+**Current Phase:** Phase 12C (V1) - Checkpoint 6 (Installable PWA shell) - Complete
+**Latest Implementation Commit:** 478fb7109f34a48f2f27fb5ed77e06bb12b67476
 
 ## PHASE 12C / V1 — CHECKPOINT 1: USER-SCOPED LOCAL STORAGE (Complete)
 
@@ -1041,4 +1041,95 @@ constraint. Static schema checks supplement but do not replace that gate.
 - Idempotent reconciliation: completing an already-completed trip is treated as success.
 - Session sync/durability state persisted truthfully (`SET_SYNC`, `SET_PERSISTED`) with reducer tests.
 - Tests: 267 passing (25 files). Lint clean; typecheck clean.
+
+
+## PHASE 12C / V1 — CHECKPOINT 4: GPX/KML NORMALIZED IMPORT/EXPORT (Complete)
+
+**Date:** 2026-09-06
+**Merge commit (main):** `cb95ddb` — `feat: normalized GPX/KML import and KML export (#8)`
+**PR:** #8
+
+### Scope delivered
+
+- `src/lib/domain/tracking/routeImport.ts`: normalized GPX and KML import to a
+  single route-point contract; coordinate projection/validation, elevation and
+  timestamp normalization, duplicate and invalid point filtering.
+- `src/lib/domain/tracking/kml.ts`: normalized KML import and KML export.
+- `src/lib/domain/tracking/service.ts`: route import/export helpers wired into the
+  tracking service boundary.
+- `src/components/tracking/RouteImportButton.tsx`: file-picker import UI with
+  validation and error feedback.
+- `src/components/tracking/GpxExportButton.tsx`: GPX export from the canonical
+  route statistics and KML export support.
+- `src/lib/hooks/useTracking.ts`: import/export integration in the tracking hook.
+- Tests: routeImport and KML suites; full suite passing; lint clean; typecheck clean.
+
+
+## PHASE 12C / V1 — CHECKPOINT 5: TRIP SHARING & PUBLIC TRAIL PAGES (Complete)
+
+**Date:** 2026-09-06
+**Merge commit (main):** `caf5d46` — `feat: add trip sharing and public trail pages (#9)`
+**PR:** #9
+
+### Scope delivered
+
+- `src/lib/domain/trips/sharing.ts`: share-token generation and lookup with
+  ownership and activity rules.
+- `src/app/share/[token]/page.tsx` and `src/app/trails/[id]/page.tsx`: public,
+  server-rendered pages for shared trips and public trails.
+- `src/components/trails/TrailView.tsx`: public trail renderer.
+- `src/components/trips/TripShareControls.tsx`: owner-side share controls.
+- Supabase migration `20260906000200_phase12c_sharing.sql` plus schema snapshot
+  and read-only verification checks.
+- `src/types/database.ts` sharing/type contracts.
+- Security checks for anonymous/public access on share/trail surfaces.
+- Tests: database security suite; full suite passing; lint, typecheck, db:validate,
+  security:scan, and production build passing.
+
+
+## PHASE 12C / V1 — CHECKPOINT 6: INSTALLABLE PWA SHELL & OFFLINE FALLBACK (Complete)
+
+**Date:** 2026-09-06
+**Branch commit:** `478fb71` — `feat: add installable PWA shell and offline fallback`
+**Remote branch SHA:** `478fb7109f34a48f2f27fb5ed77e06bb12b67476`
+
+### Scope delivered
+
+- `public/manifest.webmanifest`: install metadata with `name`, `short_name`,
+  `start_url`, `scope`, `display`, `theme_color`, `background_color`, and
+  `any`/`maskable` icon entries.
+- `public/sw.js`: conservative service worker that precaches the offline page
+  and PWA assets, uses a cache-first strategy for hashed build assets, and is
+  network-first for navigations with an offline page fallback. Cross-origin
+  requests (Supabase, map tiles) are never intercepted or cached.
+- `public/offline.html`: self-contained, same-origin offline fallback.
+- `public/icons/`: generated 192px, 512px, apple-touch, and SVG source icons.
+- `src/components/PwaRegister.tsx`: production-only service-worker registration
+  (no-op in development and where the API is unavailable).
+- `src/app/layout.tsx`: manifest link, web-app/icon metadata, viewport theme
+  color, and `PwaRegister` mount.
+- `src/lib/pwa/pwa.test.ts`: verifies manifest fields, referenced icon files,
+  service-worker precache/offline behavior, and the offline fallback page.
+
+### Validation at `478fb71`
+
+- `npx vitest run` — 28 files, 290/290 tests pass (4 new)
+- `npx tsc --noEmit` — pass
+- `npm run lint` — clean
+- `npm run db:validate` — pass
+- `npm run security:scan` — pass (137 tracked files)
+- `NEXT_PUBLIC_SUPABASE_URL/ANON_KEY npm run build` — pass
+- `git diff --check` — clean
+- New commit authored/committed as `Crusty-chirayu`; no attribution trailers
+- Remote branch SHA verified after push: `478fb7109f34a48f2f27fb5ed77e06bb12b67476`
+
+### Known limitations (CP6)
+
+- Service worker registration is production-only; local development does not
+  install the worker.
+- Offline navigation fallback is generic; it never replays cached private pages
+  because navigations remain network-first.
+- Background GPS recording, offline map tiles, offline trip/gear mutations,
+  end-to-end tests, CI, accessibility/performance audit, and production
+  deployment remain open roadmap items.
 
