@@ -8,6 +8,7 @@ import StatusIndicator from '@/components/tracking/StatusIndicator'
 import MetricReadout from '@/components/tracking/MetricReadout'
 import TrackingControls from '@/components/tracking/TrackingControls'
 import TrackingMap from '@/components/tracking/TrackingMap'
+import RouteImportButton from '@/components/tracking/RouteImportButton'
 import { formatDistance, formatSpeed, formatTime, formatElevation } from '@/lib/tracking/format'
 
 interface TrackingDashboardProps {
@@ -32,6 +33,7 @@ export default function TrackingDashboard({ tripId, tripTitle, userId }: Trackin
     retrySync,
     retryCompletion,
     serverCompletion,
+    importRoutePoints,
     canStart,
     canRetry,
     canPause,
@@ -151,6 +153,12 @@ export default function TrackingDashboard({ tripId, tripTitle, userId }: Trackin
             <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
               <span className="text-xs uppercase tracking-widest text-muted-foreground">Moving time</span>
               <span className="font-mono text-lg tabular-nums">{formatTime(stats.movingTime)}</span>
+            </div>
+
+            {/* Route import */}
+            <div className="rounded-lg border border-border bg-card p-4">
+              <h2 className="mb-3 text-xs uppercase tracking-widest text-muted-foreground">Import route</h2>
+              <RouteImportButton tripId={tripId} onQueued={importRoutePoints} />
             </div>
 
             {/* Controls */}

@@ -131,7 +131,7 @@ export default async function TripRoutePage({ params }: { params: Promise<{ id: 
 
             {/* Export */}
             <div className="mt-6">
-              <GpxExportButton points={historyPoints} tripTitle={tripTitle} />
+              <GpxExportButton points={historyPoints} tripTitle={tripTitle} formats={['gpx', 'kml']} />
             </div>
           </>
         )}

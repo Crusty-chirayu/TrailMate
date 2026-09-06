@@ -42,6 +42,26 @@ function makeId(): string {
   })
 }
 
+/** Deterministic content hash for import dedupe (WebCrypto, FNV fallback). */
+async function stableHash(input: string): Promise<string> {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input))
+      return Array.from(new Uint8Array(digest))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+    }
+  } catch {
+    // Fall through to the string hash.
+  }
+  let h = 2166136261
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return (h >>> 0).toString(16).padStart(8, '0')
+}
+
 export interface UseTrackingOptions {
   /** Owning account id; all local records are scoped to this user. */
   userId: string
@@ -291,6 +311,49 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
     syncRef.current?.retryNow()
   }, [])
 
+  /** Queues imported route points locally for the sync engine (offline-safe re-import dedupe). */
+  const importRoutePoints = useCallback(
+    async (input: {
+      format: 'gpx' | 'kml'
+      fileName: string
+      points: { lat: number; lng: number; elevation?: number; timestamp?: number; accuracy?: number }[]
+    }): Promise<{ queued: number; existing: boolean }> => {
+      const store = storeRef.current
+      if (!store || input.points.length === 0) return { queued: 0, existing: false }
+
+      const hash = await stableHash(input.fileName + '\u0000' + JSON.stringify(input.points))
+      const existing = await store.getPointsByTrip(tripId)
+      if (existing.some(p => p.metadata?.importHash === hash)) {
+        return { queued: 0, existing: true }
+      }
+
+      const now = Date.now()
+      const records: TrackPoint[] = input.points.map((p, i) => ({
+        id: `imp:${hash}:${i}`,
+        userId,
+        tripId,
+        sessionId: `import:${tripId}`,
+        timestamp: p.timestamp ?? now,
+        latitude: p.lat,
+        longitude: p.lng,
+        elevation: p.elevation,
+        accuracy: p.accuracy,
+        synced: false,
+        metadata: {
+          importHash: hash,
+          imported: true,
+          source: 'route-import',
+          format: input.format,
+          fileName: input.fileName,
+        },
+      }))
+      await store.addPoints(records)
+      void syncRef.current?.syncNow()
+      return { queued: records.length, existing: false }
+    },
+    [tripId, userId],
+  )
+
   /** Retries server-side trip completion for an offline finish. */
   const retryCompletion = useCallback(async () => {
     const store = storeRef.current
@@ -421,6 +484,7 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
     retrySync,
     retryCompletion,
     serverCompletion,
+    importRoutePoints,
     isRecording: status === 'tracking' || status === 'acquiring',
     isPaused: status === 'paused',
     isIdle: status === 'idle' || status === 'completed',
