@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { clearLocalTripData } from '@/lib/tracking/localCleanup'
 
 function isRedirectError(error: unknown): boolean {
   return (
@@ -18,10 +19,12 @@ function isRedirectError(error: unknown): boolean {
 export default function DeleteTripButton({
   tripId,
   tripTitle,
+  userId,
   onDelete,
 }: {
   tripId: string
   tripTitle: string
+  userId: string
   onDelete: (formData: FormData) => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
@@ -46,6 +49,7 @@ export default function DeleteTripButton({
       formData.set('tripId', tripId)
       await onDelete(formData)
       // Server action will redirect; if it does not throw redirect, navigate to list
+      void clearLocalTripData(tripId, userId)
       router.push('/trips')
     } catch (e) {
       if (isRedirectError(e)) throw e

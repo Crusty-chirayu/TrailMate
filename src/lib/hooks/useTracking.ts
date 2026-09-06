@@ -22,8 +22,8 @@ import { createSupabaseSyncUploader } from '@/lib/tracking/supabaseSync'
 /** Cap on points held in React state for rendering; storage keeps everything. */
 const MAX_LIVE_POINTS = 1500
 
-function mountStore(): TrackingStore {
-  return new TrackingStore(new IndexedDbAdapter())
+function mountStore(userId: string): TrackingStore {
+  return new TrackingStore(new IndexedDbAdapter(), userId)
 }
 
 function isOnline(): boolean {
@@ -42,11 +42,14 @@ function makeId(): string {
 }
 
 export interface UseTrackingOptions {
+  /** Owning account id; all local records are scoped to this user. */
+  userId: string
   tripTitle?: string
   filterConfig?: Partial<TrackFilterConfig>
 }
 
 export function useTracking(tripId: string, options?: UseTrackingOptions) {
+  const userId = options?.userId ?? ''
   const [session, setSession] = useState<TrackingSession | null>(null)
   const [points, setPoints] = useState<TrackPoint[]>([])
   const [syncState, setSyncState] = useState<SyncState>('local')
@@ -58,6 +61,7 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
   const syncRef = useRef<TrackingSync | null>(null)
   const filterRef = useRef<TrackFilterConfig>({ ...DEFAULT_TRACK_FILTER, ...options?.filterConfig })
   const tripTitleRef = useRef(options?.tripTitle)
+  const optionsRef = useRef(options)
   const startLockRef = useRef(false)
   const finishLockRef = useRef(false)
   const livePointsRef = useRef<TrackPoint[]>([])
@@ -114,6 +118,7 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
 
       const point: TrackPoint = {
         id: makeId(),
+        userId: s.userId ?? userId,
         tripId: s.tripId,
         sessionId: s.id,
         timestamp: fix.timestamp,
@@ -159,7 +164,10 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
 
   // ---- Initialization: load resumable session, wire storage/sync/engine.
   useEffect(() => {
-    const store = mountStore()
+    // Auth safety: never mount user-bound storage or the GPS/sync engines when
+    // no account is known (covers logout and account switches in the same tab).
+    if (!userId) return
+    const store = mountStore(userId)
     storeRef.current = store
 
     const engine = new GeolocationEngine()
@@ -177,6 +185,10 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
 
     const init = async () => {
       try {
+        // One-time adoption of pre-v2 records under the currently signed-in
+        // account. Unattributable records are quarantined by the sync engine
+        // on upload rejection rather than blocking the queue.
+        await store.migrateLegacyRecords()
         const resumable = (await store.getResumableSessions()).find(x => x.tripId === tripId)
         if (
           !cancelled &&
@@ -185,6 +197,7 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
         ) {
           const restored: TrackingSession = {
             ...resumable,
+            userId: resumable.userId ?? optionsRef.current?.userId,
             tripTitle: tripTitleRef.current ?? resumable.tripTitle,
           }
           sessionRef.current = restored
@@ -222,8 +235,10 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
       window.removeEventListener('offline', onOffline)
       sessionRef.current = null
     }
+    // userId is intentionally part of the lifecycle: an account switch must
+    // tear down the previous user's storage/sync wiring.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tripId])
+  }, [tripId, userId])
 
   // ---- Public controls -------------------------------------------------------
 
@@ -241,18 +256,22 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
       if (resumable) {
         next = {
           ...resumable,
+          userId: resumable.userId ?? optionsRef.current?.userId,
           status: 'acquiring',
           tripTitle: tripTitleRef.current ?? resumable.tripTitle,
           persistenceState: 'persisted',
         }
       } else {
-        next = reduceSession(null, {
-          type: 'START',
-          sessionId: makeId(),
-          tripId,
-          startedAt: now,
-          tripTitle: tripTitleRef.current,
-        }) as TrackingSession
+        next = {
+          ...(reduceSession(null, {
+            type: 'START',
+            sessionId: makeId(),
+            tripId,
+            startedAt: now,
+            tripTitle: tripTitleRef.current,
+          }) as TrackingSession),
+          userId: optionsRef.current?.userId,
+        }
       }
       applySession(next)
       startEngine()

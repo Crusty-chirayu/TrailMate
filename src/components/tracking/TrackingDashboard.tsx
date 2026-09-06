@@ -13,9 +13,10 @@ import { formatDistance, formatSpeed, formatTime, formatElevation } from '@/lib/
 interface TrackingDashboardProps {
   tripId: string
   tripTitle: string
+  userId: string
 }
 
-export default function TrackingDashboard({ tripId, tripTitle }: TrackingDashboardProps) {
+export default function TrackingDashboard({ tripId, tripTitle, userId }: TrackingDashboardProps) {
   const {
     points,
     session,
@@ -33,7 +34,7 @@ export default function TrackingDashboard({ tripId, tripTitle }: TrackingDashboa
     canFinish,
     isRecording,
     isPaused,
-  } = useTracking(tripId, { tripTitle })
+  } = useTracking(tripId, { userId, tripTitle })
 
   // A timestamp captured inside the interval effect (never during render) so
   // the live elapsed clock stays pure with respect to rendering. The first

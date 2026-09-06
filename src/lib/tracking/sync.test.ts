@@ -21,7 +21,7 @@ function makePoint(sessionId: string, timestamp: number): TrackPoint {
 type UploadFn = (points: TrackPoint[]) => Promise<UploadResult>
 
 async function setup(uploader: SyncUploader, isOnline = () => true) {
-  const store = new TrackingStore(new MemoryDbAdapter())
+  const store = new TrackingStore(new MemoryDbAdapter(), 'user-a')
   const sync = new TrackingSync({ store, uploader, isOnline })
   return { store, sync }
 }

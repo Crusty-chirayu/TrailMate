@@ -1,4 +1,5 @@
 import { redirect, notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 import { TripService } from '@/lib/domain/trips/service'
 import TrackingDashboard from '@/components/tracking/TrackingDashboard'
 
@@ -10,6 +11,12 @@ export default async function TripTrackPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
   let trip
   try {
     trip = await TripService.getTripById(id)
@@ -33,5 +40,5 @@ export default async function TripTrackPage({
     }
   }
 
-  return <TrackingDashboard tripId={trip.id} tripTitle={trip.title} />
+  return <TrackingDashboard tripId={trip.id} tripTitle={trip.title} userId={user.id} />
 }
