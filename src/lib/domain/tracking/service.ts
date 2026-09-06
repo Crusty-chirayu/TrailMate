@@ -116,6 +116,60 @@ export class TrackingService {
     return routePointRowToDomain(data)
   }
 
+  /**
+   * Bulk-inserts imported route points for an owned trip. RLS enforces trip
+   * ownership; `source_id` dedupes re-imports of the same file. Batch limit is
+   * applied client-side before calling, and one all-or-nothing request is used.
+   */
+  static async addRoutePoints(
+    tripId: string,
+    points: {
+      lat: number
+      lng: number
+      elevation?: number
+      accuracy?: number
+      timestamp?: number
+      sourceId: string
+      metadata?: Record<string, unknown>
+    }[],
+  ) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    if (points.length === 0) return 0
+
+    const rows = points.map(p => {
+      const row: RoutePointInsert = {
+        trip_id: tripId,
+        lat: p.lat,
+        lng: p.lng,
+        elevation: p.elevation ?? null,
+        accuracy: p.accuracy ?? null,
+        source_id: p.sourceId,
+        metadata: {
+          ...(p.metadata ?? {}),
+          source: 'route-import',
+          imported: true,
+        } as Json,
+      }
+      // Only supply recorded_at when the source file had a real timestamp;
+      // otherwise the column default (import time) applies.
+      if (p.timestamp !== undefined) {
+        row.recorded_at = new Date(p.timestamp).toISOString()
+      }
+      return row
+    })
+
+    const { error } = await supabase.from('route_points').upsert(rows, {
+      onConflict: 'source_id',
+    })
+    if (error) throw error
+    return rows.length
+  }
+
   static async deleteRoutePointsByTripId(tripId: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

@@ -1025,3 +1025,20 @@ constraint. Static schema checks supplement but do not replace that gate.
 - Lint: 0 errors / 0 warnings (cleared all pre-existing warnings).
 - Tests: 264 passing (11 new across storage/sync suites).
 
+
+## PHASE 12C / V1 — CHECKPOINT 3: OFFLINE COMPLETION RECONCILIATION (Complete)
+
+**Date:** 2026-09-06
+**Merge commit (main):** `ca92e7e` — `feat: offline trip completion reconciliation (#7)`
+**PR:** #7
+
+### Scope delivered
+
+- `finish()` is two-phase: local completion (points durable, engine keeps draining) then a server transition via `finishTripAction`.
+- Durable per-user `CompletionIntent` persisted before the server call; removed only on success.
+- Track page initialization reconciles any pending intent before resuming sessions, so offline finishes recover after refresh/restart.
+- Retry-finish UI when offline/auth fails; `retryCompletion` exposed from the hook; sign-in errors surfaced as readable alerts.
+- Idempotent reconciliation: completing an already-completed trip is treated as success.
+- Session sync/durability state persisted truthfully (`SET_SYNC`, `SET_PERSISTED`) with reducer tests.
+- Tests: 267 passing (25 files). Lint clean; typecheck clean.
+
