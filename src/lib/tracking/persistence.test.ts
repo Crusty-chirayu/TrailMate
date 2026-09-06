@@ -195,6 +195,19 @@ describe('TrackingStore (IndexedDB / fake-indexeddb)', () => {
     expect((await b.getAllSessions()).map(s => s.id)).toEqual(['s-b'])
   })
 
+  it('persists, reads and removes completion intents scoped to the user', async () => {
+    const adapter = new IndexedDbAdapter(`trailmate-intent-${Date.now()}`, DB_VERSION)
+    const a = new TrackingStore(adapter, 'user-a')
+    const b = new TrackingStore(adapter, 'user-b')
+    await a.saveCompletionIntent('t1')
+    await b.saveCompletionIntent('t1')
+    expect((await a.getCompletionIntent('t1'))?.userId).toBe('user-a')
+    expect((await b.getCompletionIntent('t1'))?.userId).toBe('user-b')
+    await a.removeCompletionIntent('t1')
+    expect(await a.getCompletionIntent('t1')).toBeUndefined()
+    expect(await b.getCompletionIntent('t1')).toBeDefined()
+  })
+
   it('clears only the current user data', async () => {
     const adapter = new IndexedDbAdapter(`trailmate-clear-${Date.now()}`, DB_VERSION)
     const a = new TrackingStore(adapter, 'user-a')

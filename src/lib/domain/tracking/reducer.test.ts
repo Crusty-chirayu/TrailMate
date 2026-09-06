@@ -122,4 +122,21 @@ describe('tracking state machine', () => {
     prefer({ type: 'FINISH', endedAt: 5000 }, s)
     expect(JSON.stringify(s)).toBe(before)
   })
+
+  it('records the engine sync state and durability on the session', () => {
+    let s = moved()
+    s = prefer({ type: 'SET_SYNC', syncState: 'syncing' }, s)
+    expect(s.syncState).toBe('syncing')
+    s = prefer({ type: 'SET_SYNC', syncState: 'synced' }, s)
+    expect(s.syncState).toBe('synced')
+    s = prefer({ type: 'SET_PERSISTED' }, s)
+    expect(s.persistenceState).toBe('persisted')
+    // Sync state survives lifecycle transitions.
+    s = prefer({ type: 'FINISH', endedAt: 9000 }, s)
+    expect(s.syncState).toBe('synced')
+  })
+
+  it('ignores SET_SYNC without a session', () => {
+    expect(reduceSession(null, { type: 'SET_SYNC', syncState: 'queued' })).toBeNull()
+  })
 })

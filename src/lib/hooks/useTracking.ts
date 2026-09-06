@@ -18,6 +18,7 @@ import { TrackingStore } from '@/lib/tracking/persistence'
 import { TrackingSync } from '@/lib/tracking/sync'
 import { IndexedDbAdapter } from '@/lib/tracking/storage'
 import { createSupabaseSyncUploader } from '@/lib/tracking/supabaseSync'
+import { finishTripAction } from '@/app/trips/[id]/track/actions'
 
 /** Cap on points held in React state for rendering; storage keeps everything. */
 const MAX_LIVE_POINTS = 1500
@@ -54,6 +55,7 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
   const [points, setPoints] = useState<TrackPoint[]>([])
   const [syncState, setSyncState] = useState<SyncState>('local')
   const [online, setOnline] = useState(isOnline)
+  const [serverCompletion, setServerCompletion] = useState<'none' | 'pending' | 'synced' | 'error'>('none')
 
   const sessionRef = useRef<TrackingSession | null>(null)
   const storeRef = useRef<TrackingStore | null>(null)
@@ -209,6 +211,18 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
         // account. Unattributable records are quarantined by the sync engine
         // on upload rejection rather than blocking the queue.
         await store.migrateLegacyRecords()
+        // Offline-finish recovery: if a locally finished session still needs
+        // server-side trip completion, reconcile before anything else.
+        const pendingCompletion = await store.getCompletionIntent(tripId)
+        if (!cancelled && pendingCompletion) {
+          const result = await finishTripAction(tripId)
+          if (result.ok) {
+            await store.removeCompletionIntent(tripId)
+            setServerCompletion('synced')
+          } else {
+            setServerCompletion('pending')
+          }
+        }
         const resumable = (await store.getResumableSessions()).find(x => x.tripId === tripId)
         if (
           !cancelled &&
@@ -276,6 +290,23 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
   const retrySync = useCallback(() => {
     syncRef.current?.retryNow()
   }, [])
+
+  /** Retries server-side trip completion for an offline finish. */
+  const retryCompletion = useCallback(async () => {
+    const store = storeRef.current
+    if (!store) return
+    try {
+      const result = await finishTripAction(tripId)
+      if (result.ok) {
+        await store.removeCompletionIntent(tripId)
+        setServerCompletion('synced')
+      } else {
+        setServerCompletion(result.error?.includes('authenticated') ? 'error' : 'pending')
+      }
+    } catch {
+      setServerCompletion('pending')
+    }
+  }, [tripId])
 
   const start = useCallback(async () => {
     if (startLockRef.current) return
@@ -348,14 +379,29 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
       engineRef.current?.stop()
       const inFlight = reduceSession(current, { type: 'FINISH', endedAt: Date.now() })
       if (inFlight) applySession(inFlight)
-      // Push any pending points before marking complete.
+      // Push any pending points before marking complete; the engine keeps
+      // draining in the background either way.
       await syncRef.current?.syncNow()
       const done = sessionRef.current ? reduceSession(sessionRef.current, { type: 'COMPLETE', at: Date.now() }) : null
       if (done) applySession(done)
+      // Two-phase server completion: persist the intent first so an offline
+      // finish is recoverable, then reconcile; remove only on success.
+      await storeRef.current?.saveCompletionIntent(tripId)
+      try {
+        const result = await finishTripAction(tripId)
+        if (result.ok) {
+          await storeRef.current?.removeCompletionIntent(tripId)
+          setServerCompletion('synced')
+        } else {
+          setServerCompletion(result.error?.includes('authenticated') ? 'error' : 'pending')
+        }
+      } catch {
+        setServerCompletion('pending')
+      }
     } finally {
       finishLockRef.current = false
     }
-  }, [applySession])
+  }, [applySession, tripId])
 
   const stats: TrackingStatistics = session?.statistics ?? emptyStatistics()
   const status = session?.status ?? 'idle'
@@ -373,6 +419,8 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
     finish,
     retrySession,
     retrySync,
+    retryCompletion,
+    serverCompletion,
     isRecording: status === 'tracking' || status === 'acquiring',
     isPaused: status === 'paused',
     isIdle: status === 'idle' || status === 'completed',

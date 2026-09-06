@@ -39,6 +39,18 @@ interface MetaRecord {
   value: string
 }
 
+/** Durable record that a finished session still needs server-side reconciliation. */
+export interface CompletionIntent {
+  id: string
+  userId: string
+  tripId: string
+  at: number
+}
+
+function completionKey(userId: string, tripId: string): string {
+  return `completion:${userId}:${tripId}`
+}
+
 export class TrackingStore {
   constructor(
     private db: DbAdapter,
@@ -218,6 +230,26 @@ export class TrackingStore {
     for (const s of sessions) {
       await this.deleteSession(s.id)
     }
+  }
+
+  /** Records that a locally-finished trip still needs server reconciliation. */
+  async saveCompletionIntent(tripId: string): Promise<void> {
+    const record: CompletionIntent = {
+      id: completionKey(this.userId, tripId),
+      userId: this.userId,
+      tripId,
+      at: Date.now(),
+    }
+    await this.db.put(STORE_META, record)
+  }
+
+  async getCompletionIntent(tripId: string): Promise<CompletionIntent | undefined> {
+    const record = await this.db.get<CompletionIntent>(STORE_META, completionKey(this.userId, tripId))
+    return record && record.userId === this.userId ? record : undefined
+  }
+
+  async removeCompletionIntent(tripId: string): Promise<void> {
+    await this.db.delete(STORE_META, completionKey(this.userId, tripId))
   }
 
   /**

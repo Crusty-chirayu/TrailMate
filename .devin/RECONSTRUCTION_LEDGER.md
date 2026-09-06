@@ -1006,3 +1006,22 @@ constraint. Static schema checks supplement but do not replace that gate.
 - secret/attribution scans clean; no prohibited strings in commit or diff
 - Working tree clean after merge; `origin/main == 9de640a`
 
+
+## PHASE 12C / V1 — CHECKPOINT 2: SYNC STATE MACHINE + RECOVERY (Complete)
+
+**Date:** 2026-09-06
+**Merge commit (main):** `a990939` — `feat: deterministic sync state machine with retry, drain and quarantine (#6)`
+**PR:** #6
+
+### Scope delivered
+
+- Sync states: local, queued, syncing, retrying, synced, failed (paused) — UI labels only states the engine reports.
+- Bounded jittered exponential backoff (2s→60s) with an 8-attempt consecutive-failure cap: after the cap the engine pauses and requires an explicit retry; no hidden retry loop.
+- Automatic queue drain in bounded steps (batch size 200, 250ms between steps) so large backlogs finish without blocking the UI; drains until empty.
+- Partial batch failure isolation: data-class failures are split recursively to the individual point and quarantined (raw data preserved), so one stale record cannot poison a queue.
+- Uploader classifies network/auth/data failures and verifies batch ownership against the current session.
+- Persisted `session.syncState` follows the engine (`SET_SYNC`) and `persistenceState` records successful saves (`SET_PERSISTED`).
+- GPS error recovery: retry resumes the SAME session (no orphaned sessions); fixes are only accepted in reducible states.
+- Lint: 0 errors / 0 warnings (cleared all pre-existing warnings).
+- Tests: 264 passing (11 new across storage/sync suites).
+
