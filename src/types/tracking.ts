@@ -42,6 +42,8 @@ export type PersistenceState = 'none' | 'persisted' | 'error'
 export interface TrackPoint {
   /** Client-generated unique id. Also used as the deduplication key during sync. */
   id: string
+  /** Owning account. Present on all v2 records; legacy records gain it at migration. */
+  userId?: string
   tripId: string
   sessionId: string
   /** Epoch milliseconds (UTC). Never derived from counters. */
@@ -60,6 +62,10 @@ export interface TrackPoint {
   speed?: number
   /** Whether this point has been acknowledged by the server sync. */
   synced: boolean
+  /** True when the point can never be uploaded (e.g. trip deleted remotely). */
+  quarantined?: boolean
+  /** Human-readable reason for quarantine, for diagnostics only. */
+  quarantineReason?: string
   metadata?: Record<string, unknown>
 }
 
@@ -96,6 +102,8 @@ export interface TrackingStatistics {
  */
 export interface TrackingSession {
   id: string
+  /** Owning account. Present on all v2 records; legacy records gain it at migration. */
+  userId?: string
   tripId: string
   startedAt: number
   endedAt?: number

@@ -128,7 +128,7 @@ export default async function TripDetailPage({
               <Button href={`/trips/${id}/edit`} variant="outline" size="icon" aria-label={`Edit trip ${trip.title}`}>
                 <Edit className="h-4 w-4" />
               </Button>
-              <DeleteTripButton tripId={id} tripTitle={trip.title} onDelete={deleteTripWithForm} />
+              <DeleteTripButton tripId={id} tripTitle={trip.title} userId={trip.userId} onDelete={deleteTripWithForm} />
             </div>
           </div>
         </div>

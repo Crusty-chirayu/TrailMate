@@ -3,17 +3,31 @@
 // The browser implementation uses IndexedDB (suitable for thousands of route
 // points; localStorage is intentionally avoided). An in-memory adapter is
 // provided so the persistence layer can be unit-tested without a browser.
+//
+// Version 2 adds user-scoped records. Every session and point carries the
+// owning user id, and each store has a by-user index so records from one
+// account are never visible to another. The separate "pending" queue store
+// from version 1 is removed: unsynced points are now derived from a string
+// queue key on the points record ("<userId>:0"), which makes point persistence
+// a single atomic write instead of two separate transactions. Booleans are not
+// valid IndexedDB keys, so the queue key is a string rather than a composite
+// [userId, synced] index.
 
 export const DB_NAME = 'trailmate'
-export const DB_VERSION = 1
+export const DB_VERSION = 2
 export const STORE_SESSIONS = 'sessions'
 export const STORE_POINTS = 'points'
-/** Lightweight queue of point ids awaiting upload (boolean keys are invalid in IndexedDB). */
-export const STORE_PENDING = 'pending'
+/** Key/value metadata, e.g. one-time local migration flags. */
+export const STORE_META = 'meta'
+/** Removed in v2; kept only so the upgrade path can drop it deterministically. */
+export const STORE_PENDING_LEGACY = 'pending'
 
 /** IndexedDB indexes that the TrackingStore relies on. */
 export const POINT_INDEX_BY_TRIP = 'byTrip'
 export const POINT_INDEX_BY_SESSION = 'bySession'
+/** String queue key ("<userId>:0" unsynced, "<userId>:1" synced). */
+export const POINT_INDEX_BY_QUEUE = 'byQueue'
+export const SESSION_INDEX_BY_USER = 'byUser'
 
 export interface DbAdapter {
   get<T>(store: string, key: string): Promise<T | undefined>
@@ -34,12 +48,20 @@ interface RecordLike {
   id: string
 }
 
-/** Maps a logical IndexedDB index name to the object field(s) it mirrors. */
+/** Resolves a logical index name to the object field it mirrors. */
 function indexFieldKey(index: string): string {
-  if (index === POINT_INDEX_BY_TRIP) return 'tripId'
-  if (index === POINT_INDEX_BY_SESSION) return 'sessionId'
-  // Fallback: assume the index name matches a top-level field.
-  return index
+  switch (index) {
+    case POINT_INDEX_BY_TRIP:
+      return 'tripId'
+    case POINT_INDEX_BY_SESSION:
+      return 'sessionId'
+    case POINT_INDEX_BY_QUEUE:
+      return 'queueKey'
+    case SESSION_INDEX_BY_USER:
+      return 'userId'
+    default:
+      return index
+  }
 }
 
 /**
@@ -63,16 +85,48 @@ export class IndexedDbAdapter implements DbAdapter {
       const request = indexedDB.open(this.dbName, this.version)
       request.onupgradeneeded = () => {
         const db = request.result
+        const oldVersion = Number((request as IDBOpenDBRequest & { oldVersion?: number }).oldVersion ?? 0)
+        const tx = request.transaction!
+
         if (!db.objectStoreNames.contains(STORE_SESSIONS)) {
-          db.createObjectStore(STORE_SESSIONS, { keyPath: 'id' })
+          const sessions = db.createObjectStore(STORE_SESSIONS, { keyPath: 'id' })
+          sessions.createIndex(SESSION_INDEX_BY_USER, 'userId')
+        } else if (oldVersion < 2) {
+          const sessions = tx.objectStore(STORE_SESSIONS)
+          if (!sessions.indexNames.contains(SESSION_INDEX_BY_USER)) {
+            sessions.createIndex(SESSION_INDEX_BY_USER, 'userId')
+          }
         }
+
         if (!db.objectStoreNames.contains(STORE_POINTS)) {
           const points = db.createObjectStore(STORE_POINTS, { keyPath: 'id' })
           points.createIndex(POINT_INDEX_BY_TRIP, 'tripId')
           points.createIndex(POINT_INDEX_BY_SESSION, 'sessionId')
+          points.createIndex(POINT_INDEX_BY_QUEUE, 'queueKey')
+        } else if (oldVersion < 2) {
+          const points = tx.objectStore(STORE_POINTS)
+          if (!points.indexNames.contains(POINT_INDEX_BY_TRIP)) {
+            points.createIndex(POINT_INDEX_BY_TRIP, 'tripId')
+          }
+          if (!points.indexNames.contains(POINT_INDEX_BY_SESSION)) {
+            points.createIndex(POINT_INDEX_BY_SESSION, 'sessionId')
+          }
+          if (!points.indexNames.contains(POINT_INDEX_BY_QUEUE)) {
+            points.createIndex(POINT_INDEX_BY_QUEUE, 'queueKey')
+          }
         }
-        if (!db.objectStoreNames.contains(STORE_PENDING)) {
-          db.createObjectStore(STORE_PENDING, { keyPath: 'id' })
+
+        if (!db.objectStoreNames.contains(STORE_META)) {
+          db.createObjectStore(STORE_META, { keyPath: 'id' })
+        }
+
+        // The v1 pending queue is obsolete; its state is derived from points.
+        if (oldVersion < 2 && db.objectStoreNames.contains(STORE_PENDING_LEGACY)) {
+          db.deleteObjectStore(STORE_PENDING_LEGACY)
+        }
+        // Also drop the store if it somehow still exists at any later version.
+        if (db.objectStoreNames.contains(STORE_PENDING_LEGACY)) {
+          db.deleteObjectStore(STORE_PENDING_LEGACY)
         }
       }
       request.onsuccess = () => resolve(request.result)
@@ -133,21 +187,19 @@ export class IndexedDbAdapter implements DbAdapter {
       const tx = db.transaction(store, 'readonly')
       const indexStore = tx.objectStore(store).index(index)
       const range =
-        key === null || key === undefined ? undefined : IDBKeyRange.only(key as string[])
-      const req = indexStore.openCursor(range, opts?.direction ?? 'next')
-      const results: T[] = []
+        key === null || key === undefined ? undefined : IDBKeyRange.only(key as IDBValidKey)
+      const reverse = opts?.direction === 'prev' || opts?.direction === 'prevunique'
+      // getAll is a single native request, far cheaper than cursor stepping;
+      // reverse ordering is applied in memory (index key order is ascending).
+      const count = !reverse && opts?.limit ? opts.limit : undefined
+      const req = indexStore.getAll(range, count)
       req.onsuccess = () => {
-        const cursor = req.result
-        if (cursor) {
-          results.push(cursor.value as T)
-          if (opts?.limit && results.length >= opts.limit) {
-            resolve(results)
-            return
-          }
-          cursor.continue()
-        } else {
-          resolve(results)
+        let results = (req.result as T[]) ?? []
+        if (reverse) {
+          results = results.reverse()
+          if (opts?.limit) results = results.slice(0, opts.limit)
         }
+        resolve(results)
       }
       req.onerror = () => reject(req.error)
     })
@@ -175,7 +227,8 @@ export class IndexedDbAdapter implements DbAdapter {
 }
 
 /**
- * In-memory adapter for tests and non-browser contexts.
+ * In-memory adapter for tests and non-browser contexts. Behaviour mirrors the
+ * IndexedDB adapter including composite [userId, synced] index lookups.
  */
 export class MemoryDbAdapter implements DbAdapter {
   private stores = new Map<string, Map<string, unknown>>()
@@ -211,15 +264,16 @@ export class MemoryDbAdapter implements DbAdapter {
     key: unknown,
     opts?: { direction?: string; limit?: number },
   ): Promise<T[]> {
-    const fieldKey = indexFieldKey(index)
-    let values = Array.from(this.store(store).values()) as T[]
-    const filtered = values.filter(
-      v => v !== null && typeof v === 'object' && (v as Record<string, unknown>)[fieldKey] === key,
-    )
-    values = filtered as T[]
-    if (opts?.direction === 'prev' || opts?.direction === 'prevunique') values.reverse()
-    if (opts?.limit) values = values.slice(0, opts.limit)
-    return values
+    const field = indexFieldKey(index)
+    const values = Array.from(this.store(store).values()) as T[]
+    const filtered = values.filter(v => {
+      if (v === null || typeof v !== 'object') return false
+      return (v as Record<string, unknown>)[field] === key
+    })
+    const result = filtered as T[]
+    if (opts?.direction === 'prev' || opts?.direction === 'prevunique') result.reverse()
+    if (opts?.limit) return result.slice(0, opts.limit)
+    return result
   }
 
   async delete(store: string, key: string): Promise<void> {
