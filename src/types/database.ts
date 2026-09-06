@@ -271,12 +271,69 @@ export interface Database {
           },
         ]
       }
+      trip_shares: {
+        Row: {
+          id: string
+          trip_id: string
+          token: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id: string
+          token: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          trip_id?: string
+          token?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'trip_shares_trip_id_fkey'
+            columns: ['trip_id']
+            isOneToOne: false
+            referencedRelation: 'trips'
+            referencedColumns: ['id']
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_shared_trip: {
+        Args: { p_token: string }
+        Returns: Array<{
+          id: string
+          title: string
+          description: string | null
+          activity_type: 'trekking' | 'cycling' | 'camping' | 'other'
+          difficulty: 'easy' | 'moderate' | 'hard' | 'expert' | null
+          visibility: 'private' | 'shared' | 'public'
+          planned_date: string | null
+          start_date: string | null
+          end_date: string | null
+          status: 'planned' | 'active' | 'completed' | 'cancelled'
+          estimated_distance: number | null
+          estimated_elevation_gain: number | null
+          estimated_duration: number | null
+        }>
+      }
+      get_shared_route: {
+        Args: { p_token: string }
+        Returns: Array<{
+          lat: number
+          lng: number
+          elevation: number | null
+          accuracy: number | null
+          recorded_at: string
+          synced: boolean
+        }>
+      }
     }
     Enums: {
       [_ in never]: never
@@ -304,3 +361,7 @@ export type GearItemUpdate = Database['public']['Tables']['gear_items']['Update'
 export type TripPackingItem = Database['public']['Tables']['trip_packing_items']['Row']
 export type TripPackingItemInsert = Database['public']['Tables']['trip_packing_items']['Insert']
 export type TripPackingItemUpdate = Database['public']['Tables']['trip_packing_items']['Update']
+
+export type TripShare = Database['public']['Tables']['trip_shares']['Row']
+export type TripShareInsert = Database['public']['Tables']['trip_shares']['Insert']
+export type TripShareUpdate = Database['public']['Tables']['trip_shares']['Update']

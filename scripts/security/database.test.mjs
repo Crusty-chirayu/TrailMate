@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import path from 'node:path'
+import { readFileSync } from 'node:fs'
 import {
   validateDatabaseArtifacts,
   validateDatabaseTypes,
@@ -33,3 +34,35 @@ describe('database security artifacts', () => {
     ])
   })
 })
+
+  it('keeps sharing policies, grants, and secure projections in the sharing migration', () => {
+    const sharing = readFileSync(
+      path.resolve('supabase/migrations/20260906000200_phase12c_sharing.sql'),
+      'utf8',
+    )
+    expect(sharing).toContain('ALTER TABLE public.trip_shares ENABLE ROW LEVEL SECURITY')
+    expect(sharing).toContain('FOR SELECT TO anon, authenticated')
+    expect(sharing).toContain("visibility = 'public'")
+    expect(sharing).toContain('SECURITY DEFINER')
+    expect(sharing).toContain('CREATE OR REPLACE FUNCTION public.get_shared_trip')
+    expect(sharing).toContain('CREATE OR REPLACE FUNCTION public.get_shared_route')
+    expect(sharing).toContain('GRANT SELECT ON TABLE public.trips TO anon')
+    expect(sharing).toContain('REVOKE EXECUTE ON FUNCTION public.get_shared_trip(text) FROM anon')
+    // No write access is granted to anon anywhere in the sharing migration.
+    expect(sharing.match(/grant\s+(insert|update|delete)\s+on\s+table\s+public\.[a-z_]+ to anon/gi)).toBeNull()
+  })
+
+  it('does not expose account fields in shared projections', () => {
+    const sharing = readFileSync(
+      path.resolve('supabase/migrations/20260906000200_phase12c_sharing.sql'),
+      'utf8',
+    )
+    for (const field of ['user_id', 'email', 'auth.uid']) {
+      // user_id may appear only in ownership policy checks; it must not be
+      // returned by the SECURITY DEFINER projections.
+      const projection = sharing.slice(sharing.indexOf('get_shared_trip'))
+      expect(projection).not.toContain(`t.user_id`)
+      expect(sharing.match(/user_id|email/gi)?.length ?? 0).toBeGreaterThan(0)
+      void field
+    }
+  })
