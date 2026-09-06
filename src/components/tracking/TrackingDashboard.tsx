@@ -30,6 +30,8 @@ export default function TrackingDashboard({ tripId, tripTitle, userId }: Trackin
     finish,
     retrySession,
     retrySync,
+    retryCompletion,
+    serverCompletion,
     canStart,
     canRetry,
     canPause,
@@ -169,6 +171,21 @@ export default function TrackingDashboard({ tripId, tripTitle, userId }: Trackin
               {isPaused && (
                 <p className="mt-3 text-xs text-muted-foreground">
                   Recording paused. Your route and statistics are preserved.
+                </p>
+              )}
+              {serverCompletion === 'pending' && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+                  <p className="text-xs text-amber-300">
+                    Trip finished locally. Server completion is pending — points are safe.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => void retryCompletion()}>
+                    Retry finish
+                  </Button>
+                </div>
+              )}
+              {serverCompletion === 'error' && (
+                <p className="mt-3 text-xs text-destructive" role="alert">
+                  Sign-in is required to finish this trip on the server. Local data is preserved.
                 </p>
               )}
               {syncState === 'failed' && (
