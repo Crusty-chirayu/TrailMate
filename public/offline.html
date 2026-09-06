@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offline - TrailMate</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #0f172a;
+      color: #f1f5f9;
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      text-align: center;
+      padding: 1.5rem;
+    }
+    main { max-width: 32rem; }
+    h1 { font-size: 2rem; margin: 0 0 0.75rem; }
+    p { color: #cbd5e1; line-height: 1.6; margin: 0 0 1.5rem; }
+    a {
+      display: inline-block;
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.75rem;
+      background: #10b981;
+      color: #052e16;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    a:focus-visible { outline: 3px solid #38bdf8; outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>You're offline</h1>
+    <p>
+      TrailMate cannot load this page right now. Recorded GPS points are safe in
+      local storage and will sync when you reconnect.
+    </p>
+    <a href="/">Retry when connected</a>
+  </main>
+</body>
+</html>

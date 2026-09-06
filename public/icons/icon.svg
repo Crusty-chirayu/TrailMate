@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="TrailMate icon">
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <circle cx="352" cy="150" r="44" fill="#fbbf24"/>
+  <path d="M64 400 L176 224 L256 328 L336 176 L448 400 Z" fill="#10b981"/>
+  <path d="M64 400 L176 224 L256 328 L336 176 L448 400 Z" fill="none" stroke="#065f46" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M120 352 C 180 272, 232 344, 296 240 C 332 184, 372 250, 208 352" fill="none" stroke="#f8fafc" stroke-width="18" stroke-linecap="round" stroke-dasharray="4 26"/>
+  <path d="M120 352 C 180 272, 232 344, 296 240 C 332 184, 372 250, 208 352" fill="none" stroke="#38bdf8" stroke-width="8" stroke-linecap="round" stroke-dasharray="4 26"/>
+  <path d="M0 400 H512" stroke="#0b1220" stroke-width="4"/>
+</svg>
