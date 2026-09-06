@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import DeleteTripButton from '@/components/trips/DeleteTripButton'
+import TripShareControls from '@/components/trips/TripShareControls'
+import { TripShareService } from '@/lib/domain/trips/sharing'
 import { ArrowLeft, MapPin, Calendar, Mountain, Clock, Activity, Edit, Play } from 'lucide-react'
 import type { Trip } from '@/types/domain'
 
@@ -74,6 +76,41 @@ export default async function TripDetailPage({
     }
     redirect(`/trips/${id}`)
   }
+
+  async function createShareAction(shareTripId: string) {
+    'use server'
+    try {
+      const share = await TripShareService.createShare(shareTripId)
+      return { ok: true as const, link: { id: share.id, token: share.token } }
+    } catch (error) {
+      console.error('Failed to create share:', error)
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Could not share trip' }
+    }
+  }
+
+  async function revokeShareAction(shareId: string) {
+    'use server'
+    try {
+      await TripShareService.revokeShare(shareId)
+      return { ok: true as const }
+    } catch (error) {
+      console.error('Failed to revoke share:', error)
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Could not revoke share' }
+    }
+  }
+
+  async function makeSharedAction(shareTripId: string) {
+    'use server'
+    try {
+      await TripService.updateTrip(shareTripId, { visibility: 'shared' })
+      return { ok: true as const }
+    } catch (error) {
+      console.error('Failed to enable sharing:', error)
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Could not enable sharing' }
+    }
+  }
+
+  const shares = await TripShareService.listShares(id).catch(() => [])
 
   const statusColors = {
     planned: 'warning',
@@ -241,6 +278,20 @@ export default async function TripDetailPage({
             </Button>
           </CardContent>
         </Card>
+
+        {/* Sharing */}
+        <div className="mb-6">
+          <TripShareControls
+            tripId={trip.id}
+            isSharedVisibility={trip.visibility === 'shared'}
+            isPublicVisibility={trip.visibility === 'public'}
+            publicUrl={`/trails/${trip.id}`}
+            initialLinks={shares.map(s => ({ id: s.id, token: s.token }))}
+            onCreate={createShareAction}
+            onRevoke={revokeShareAction}
+            onMakeShared={makeSharedAction}
+          />
+        </div>
 
         {/* Gear Card */}
         <GearCard tripId={trip.id} />
