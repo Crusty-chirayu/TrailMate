@@ -28,12 +28,21 @@ export type TrackingStatus =
 /**
  * Synchronization state of a session's recorded points.
  * - local    : points exist only locally (never been sent)
- * - pending  : there are unsynchronized points awaiting upload
+ * - queued   : unsynchronized points are awaiting upload
  * - syncing  : an upload batch is currently in flight
+ * - retrying : the last upload failed and a retry timer is scheduled
  * - synced   : all points have been uploaded
- * - failed   : the last upload attempt failed; retryable
+ * - failed   : retries are paused and require an explicit retry
  */
-export type SyncState = 'local' | 'pending' | 'syncing' | 'synced' | 'failed'
+export type SyncState = 'local' | 'queued' | 'syncing' | 'retrying' | 'synced' | 'failed'
+
+/** Machine-readable sync engine snapshot for UI rendering. */
+export interface SyncEngineStatus {
+  state: SyncState
+  nextRetryAt: number | null
+  attempts: number
+  paused: boolean
+}
 
 /** Durability state of the local session record in IndexedDB. */
 export type PersistenceState = 'none' | 'persisted' | 'error'

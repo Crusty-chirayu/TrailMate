@@ -67,12 +67,22 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
   const livePointsRef = useRef<TrackPoint[]>([])
   const handleFixRef = useRef<(fix: IncomingFix) => void>(() => {})
 
+  // Latest dispatch, readable from the sync engine's state callback.
+  const dispatchRef = useRef<(event: TrackingEvent) => TrackingSession | null>(() => null)
+
   /** Mirrors the authoritative session into React state + durable storage. */
   const applySession = useCallback((next: TrackingSession) => {
     sessionRef.current = next
     setSession(next)
     void storeRef.current
       ?.saveSession(next)
+      .then(() => {
+        // Record durability explicitly once a save succeeds (guarded so the
+        // resulting dispatch does not loop).
+        if (sessionRef.current?.persistenceState !== 'persisted') {
+          dispatchRef.current?.({ type: 'SET_PERSISTED' })
+        }
+      })
       .catch(() => {
         const err: TrackingSession = { ...next, persistenceState: 'error' }
         sessionRef.current = err
@@ -90,6 +100,9 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
     },
     [applySession],
   )
+  useEffect(() => {
+    dispatchRef.current = dispatch
+  }, [dispatch])
 
   /** Append an accepted point to the live map state (capped in memory). */
   const appendPoint = useCallback((point: TrackPoint) => {
@@ -103,7 +116,9 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
     (fix: IncomingFix) => {
       const s = sessionRef.current
       if (!s) return
-      if (!(s.status === 'acquiring' || s.status === 'tracking' || s.status === 'error')) return
+      // Only reducible states accept fixes; matches the reducer's POSITION
+      // guard so a point is never persisted without being counted.
+      if (!(s.status === 'acquiring' || s.status === 'tracking')) return
 
       const now = Date.now()
       const previous = s.lastPosition
@@ -139,7 +154,7 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
       appendPoint(point)
       void syncRef.current?.syncNow()
     },
-    [applySession, appendPoint],
+    [applySession, appendPoint, userId],
   )
   // Wire the latest fix handler into the stable ref after commit. The engine
   // dispatches through this ref, so callbacks never depend on render identity.
@@ -177,7 +192,12 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
       store,
       uploader: createSupabaseSyncUploader(),
       isOnline,
-      onStateChange: s => setSyncState(s),
+      onStateChange: s => {
+        setSyncState(s)
+        // Keep the persisted session's syncState in lockstep with the engine
+        // so recovery UIs never read a stale claim.
+        dispatchRef.current?.({ type: 'SET_SYNC', syncState: s })
+      },
     })
     syncRef.current = sync
 
@@ -242,10 +262,31 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
 
   // ---- Public controls -------------------------------------------------------
 
+  /** Restarts the GPS watcher for the same session after a recoverable error. */
+  const retrySession = useCallback(() => {
+    const current = sessionRef.current
+    if (!current || !(current.status === 'error' || current.status === 'denied' || current.status === 'unavailable')) {
+      return
+    }
+    dispatch({ type: 'RETRY', at: Date.now() })
+    startEngine()
+  }, [dispatch, startEngine])
+
+  /** Kicks the sync engine after a paused failure or to force a manual sync. */
+  const retrySync = useCallback(() => {
+    syncRef.current?.retryNow()
+  }, [])
+
   const start = useCallback(async () => {
     if (startLockRef.current) return
     const current = sessionRef.current
     if (current && (current.status === 'acquiring' || current.status === 'tracking' || current.status === 'paused')) {
+      return
+    }
+    // A recoverable GPS error must resume the SAME session, never start anew
+    // (a new session would orphan the previous one and its queued points).
+    if (current && (current.status === 'error' || current.status === 'denied' || current.status === 'unavailable')) {
+      retrySession()
       return
     }
     startLockRef.current = true
@@ -279,7 +320,7 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
     } finally {
       startLockRef.current = false
     }
-  }, [tripId, applySession, startEngine])
+  }, [tripId, applySession, startEngine, retrySession])
 
   const pause = useCallback(() => {
     const current = sessionRef.current
@@ -330,10 +371,13 @@ export function useTracking(tripId: string, options?: UseTrackingOptions) {
     pause,
     resume,
     finish,
+    retrySession,
+    retrySync,
     isRecording: status === 'tracking' || status === 'acquiring',
     isPaused: status === 'paused',
     isIdle: status === 'idle' || status === 'completed',
-    canStart: status === 'idle' || status === 'completed' || status === 'error' || status === 'denied' || status === 'unavailable',
+    canStart: status === 'idle' || status === 'completed',
+    canRetry: status === 'error' || status === 'denied' || status === 'unavailable',
     canPause: status === 'tracking',
     canResume: status === 'paused',
     canFinish: status === 'acquiring' || status === 'tracking' || status === 'paused',

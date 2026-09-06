@@ -28,7 +28,10 @@ export default function TrackingDashboard({ tripId, tripTitle, userId }: Trackin
     pause,
     resume,
     finish,
+    retrySession,
+    retrySync,
     canStart,
+    canRetry,
     canPause,
     canResume,
     canFinish,
@@ -152,11 +155,13 @@ export default function TrackingDashboard({ tripId, tripTitle, userId }: Trackin
             <div className="rounded-lg border border-border bg-card p-4">
               <TrackingControls
                 canStart={canStart}
+                canRetry={canRetry}
                 canPause={canPause}
                 canResume={canResume}
                 canFinish={canFinish}
                 isRecording={isRecording}
                 onStart={() => void start()}
+                onRetry={retrySession}
                 onPause={pause}
                 onResume={resume}
                 onFinish={() => void finish()}
@@ -165,6 +170,16 @@ export default function TrackingDashboard({ tripId, tripTitle, userId }: Trackin
                 <p className="mt-3 text-xs text-muted-foreground">
                   Recording paused. Your route and statistics are preserved.
                 </p>
+              )}
+              {syncState === 'failed' && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+                  <p className="text-xs text-amber-300">
+                    Sync is paused after repeated failures. Your points are safe locally.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={retrySync}>
+                    Retry sync
+                  </Button>
+                </div>
               )}
             </div>
           </section>

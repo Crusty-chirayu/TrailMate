@@ -23,17 +23,21 @@ const STATUS_LABEL: Record<TrackingStatus, string> = {
   unavailable: 'GPS unavailable',
 }
 
+// Labels describe exactly what the sync engine is doing; a state is only shown
+// when the engine reports it.
 function syncLabel(sync: SyncState, online: boolean): string {
   if (!online) return 'Offline — saving locally'
   switch (sync) {
     case 'local':
       return 'Not synced yet'
-    case 'pending':
+    case 'queued':
       return 'Waiting to sync'
     case 'syncing':
       return 'Syncing…'
+    case 'retrying':
+      return 'Retrying…'
     case 'failed':
-      return 'Sync retrying…'
+      return 'Sync paused — tap retry'
     case 'synced':
       return 'Saved'
   }
@@ -80,7 +84,7 @@ export default function StatusIndicator({
       <span
         className={cn(
           'text-xs',
-          !online || syncState === 'failed' ? 'text-amber-400' : syncState === 'syncing' ? 'text-sky-400' : 'text-muted-foreground',
+          !online || syncState === 'failed' ? 'text-amber-400' : syncState === 'syncing' || syncState === 'retrying' ? 'text-sky-400' : 'text-muted-foreground',
         )}
       >
         {syncLabel(syncState, online)}
