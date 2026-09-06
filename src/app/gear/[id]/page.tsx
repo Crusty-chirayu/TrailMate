@@ -67,7 +67,7 @@ export default async function GearTemplatePage({ params }: { params: { id: strin
           {items.filter(i => i.required).length} required
         </p>
         <AddItemForm templateId={params.id} />
-        <ItemsList templateId={params.id} items={items} deleteItem={deleteItem} />
+        <ItemsList items={items} deleteItem={deleteItem} />
       </div>
     </main>
   )
@@ -139,11 +139,9 @@ function AddItemForm({ templateId }: { templateId: string }) {
 }
 
 function ItemsList({
-  templateId,
   items,
   deleteItem,
 }: {
-  templateId: string
   items: Awaited<ReturnType<typeof GearService.getGearItemsByTemplateId>>
   deleteItem: (formData: FormData) => Promise<void>
 }) {

@@ -981,3 +981,28 @@ constraint. Static schema checks supplement but do not replace that gate.
 **Last Updated:** 2026-09-06
 **Current Phase:** Phase 12B - Trip Reliability & Journey Hardening (Complete)
 **Latest Implementation Commit:** 85cb6a315c84d7396ec10cfeb637ddc6dcc111b2
+
+## PHASE 12C / V1 — CHECKPOINT 1: USER-SCOPED LOCAL STORAGE (Complete)
+
+**Date:** 2026-09-06
+**Merge commit (main):** `9de640a` — `feat: scope local tracking storage per user with durable v2 migration (#5)`
+**PR:** #5
+
+### Scope delivered
+
+- IndexedDB v2 (`DB_VERSION = 2`): sessions and points carry an owning `userId`; by-user index on sessions, by-trip/by-session/by-queue indexes on points.
+- Unsynced queue derived from a string `queueKey` (`<userId>:0|1`) instead of the v1 `pending` store: a point and its queue membership are now a single atomic write (booleans are not valid IndexedDB keys).
+- One-time legacy migration: v1 records without a user id are stamped under the account that first opens the upgraded store (`meta.legacyMigratedFor`); the v1 `pending` store is dropped during upgrade.
+- Quarantine support: points whose trip no longer exists are retired with a reason and excluded from sync without deleting raw data.
+- `TrackingStore.deletePointsByTrip` plus `clearLocalTripData` wired into the delete-trip flow; per-user `clearUserData` for safe local reset.
+- `useTracking` now requires the owning `userId` (passed from the server-rendered track page), tears down engines/storage on account change, and refuses to mount without an account.
+- Adapter perf: `getAllByIndex` uses the native `index.getAll` request instead of cursor stepping (validated at 5000 points).
+
+### Validation
+
+- `npx vitest run` — 25 files, 260/260 pass (7 new)
+- `npx tsc --noEmit` — pass
+- `npm run security:scan` — pass (124 tracked files)
+- secret/attribution scans clean; no prohibited strings in commit or diff
+- Working tree clean after merge; `origin/main == 9de640a`
+

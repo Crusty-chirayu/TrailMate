@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { IndexedDbAdapter, MemoryDbAdapter, DB_VERSION, STORE_META } from './storage'
 import { TrackingStore } from './persistence'
 import { createSession } from '@/lib/domain/tracking/reducer'
-import type { TrackingSession, TrackPoint } from '@/types/tracking'
+import type { TrackPoint } from '@/types/tracking'
 
 let counter = 0
 

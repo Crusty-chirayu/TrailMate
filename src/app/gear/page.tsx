@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { GearService } from '@/lib/domain/gear/service'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { ArrowLeft, Plus, Package } from 'lucide-react'
