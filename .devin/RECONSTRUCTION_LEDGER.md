@@ -1042,3 +1042,95 @@ constraint. Static schema checks supplement but do not replace that gate.
 - Session sync/durability state persisted truthfully (`SET_SYNC`, `SET_PERSISTED`) with reducer tests.
 - Tests: 267 passing (25 files). Lint clean; typecheck clean.
 
+
+---
+
+## PHASE 12D — CI & E2E CHECKPOINT (In Progress)
+
+**Date:** 2026-09-06
+
+**Handoff forensics (discrepancy recorded):** The handoff instructed resuming from
+local commit `b44b6c3` and pushing "the existing CI + E2E checkpoint". Verification
+against the repository found **no such commit or work**:
+- `origin/main` = `caf5d469df21345bf15a3fe493c7e029a133dd84` (PR #9 tip).
+- The Arena branch `arena/01a075ef-trailmate` was local-only, never pushed, clean,
+  and byte-identical to `origin/main` (empty diff).
+- `b44b6c3` is not a valid object anywhere: `git rev-list --all` (after unshallowing
+  the depth-1 clone and fetching every `refs/heads/*`), the reflog, `git fsck`
+  dangling objects, and a full-filesystem grep all returned nothing.
+- No `.github/` directory, no Playwright/Cypress config, no `e2e/` files, and no
+  CI/E2E scripts existed in `package.json`. The architecture doc lists Playwright
+  E2E and a CI/CD pipeline only as *planned* Phase 10–11 work.
+
+Per owner decision, the CI + E2E checkpoint was built fresh on the verified
+baseline rather than racing a phantom handoff.
+
+### Scope delivered
+
+**CI (`/github/workflows/ci.yml`)** — runs on push to `main`/`arena/**` and PRs:
+- `gates` job: `npm ci`, lint, typecheck, `npm test` (vitest), `db:validate`,
+  `security:scan`, `npm audit --audit-level=high`, production build (with
+  placeholder Supabase creds), `git diff --check`.
+- `e2e` job (needs `gates`): installs Playwright Chromium (`--with-deps`), runs
+  `npm run e2e`, uploads the Playwright report on failure. caches the browser.
+
+**Playwright E2E suite (`e2e/`)** — targets the unauthenticated surface so CI
+needs no live backend:
+- `playwright.config.ts`: drives the production server via `npm run e2e:serve`
+  (`scripts/e2e/serve.mjs`), waits on `/login`, single Chromium project.
+- `scripts/e2e/serve.mjs`: builds once with placeholder Supabase credentials (the
+  dashboard's `useAuth` calls `createClient()` at prerender), then starts the
+  runtime server **without** them so the auth proxy fails closed to `/login`
+  instantly — no external network, fully deterministic.
+- `e2e/auth-boundary.spec.ts` (10 tests): `/login` and `/signup` render their
+  forms and labelled inputs; every protected route (`/`, `/trips`, `/trips/new`,
+  `/gear`, `/gear/gear-list`, `/trips/example-trip-id`) redirects to `/login`.
+- `e2e/security-headers.spec.ts` (2 tests): CSP, `X-Frame-Options`, content-type,
+  referrer and permissions headers present on pages and on the 307 redirect;
+  `X-Powered-By` absent; CSP allows only the configured integrations.
+
+**Files added:** `.github/workflows/ci.yml`, `e2e/auth-boundary.spec.ts`,
+`e2e/security-headers.spec.ts`, `playwright.config.ts`, `scripts/e2e/serve.mjs`;
+`package.json` (`@playwright/test`, `e2e`/`e2e:ui`/`e2e:serve` scripts);
+`.gitignore` (Playwright artifacts); `package-lock.json`.
+
+### Validation (repository gates — all pass locally)
+
+- `npm run lint` — 0 errors
+- `npm run typecheck` — pass
+- `npm test` — 27 files, 286/286 tests pass
+- `npm run db:validate` — pass
+- `npm run security:scan` — pass (137 tracked files; historical env-commit warning
+  remains expected)
+- `npm audit` — 0 vulnerabilities
+- `npm run build` — pass (`NEXT_PUBLIC_SUPABASE_URL=… ANON_KEY=…`)
+- `git diff --check` — clean
+- `npx playwright test --list` — 12 tests discovered across 2 files
+- `scripts/e2e/serve.mjs` — verified: starts Next on the configured port, `/login`
+  returns 200 with "Welcome Back", `/` returns 307 → `/login`
+
+### Remote checkpoint
+
+- Pushed to `origin/arena/01a075ef-trailmate` at commit
+  `6de81e86642204ab00bb604cfaff7521d364fe91` (code + E2E suite). Remote SHA
+  verified against local HEAD.
+
+### Known limitation / external action
+
+- The E2E **browser** step was not executed locally: the sandbox blocks the
+  Chromium download hosts (`cdn.playwright.dev`, `storage.googleapis.com`,
+  auxiliary mirrors) and the apt mirrors needed for Chromium's runtime libraries
+  (`libnspr4`/`libnss3`). DOM assertions were grounded against the served SSR
+  HTML (headings, input ids, `label[for]`, `href` targets), and the server launcher
+  was exercised directly. The browser suite is the authoritative gate that runs in
+  CI once the workflow is live.
+- **Workflow push blocked:** GitHub rejected pushing `.github/workflows/ci.yml`
+  because the Arena GitHub App token lacks the `workflows` permission
+  ("refusing to allow a GitHub App to create or update workflow … without
+  `workflows` permission"). The CI file is present in the working tree
+  (untracked) and ready to commit/push once the `workflows` permission is granted
+  to the integration (repo settings → GitHub App → Content + Workflows).
+
+**Phase 12D status:** E2E code checkpoint pushed and SHA-verified. CI workflow
+push pending the `workflows` GitHub App permission; browser E2E executes in CI.
+
